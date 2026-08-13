@@ -1,0 +1,1679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Maverick — Growth, Marketing &amp; Community</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sometype+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #09090a;             /* near-black */
+    --ink: #ededec;            /* primary text */
+    --muted: #8b8b8f;          /* secondary text */
+    --cream: #ece9e6;          /* neutral off-white heading accent */
+    --accent: #d7d7da;         /* light neutral accent (was red) */
+    --accent-2: #b6b6ba;
+    --pill-ink: #131316;       /* text on light pills */
+    --card-top: #17171a;
+    --card-bot: #0e0e10;
+    --line: rgba(255,255,255,.10);
+    --glass: rgba(20,20,22,.5);
+    --glass-brd: rgba(255,255,255,.12);
+    --maxw: 1180px;
+    --display: "Inter", system-ui, sans-serif;
+    --sans: "Inter", system-ui, sans-serif;
+    --mono: "Sometype Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  /* Native smooth-scroll is the fallback ONLY when Lenis isn't running.
+     When Lenis is active it adds the .lenis class and drives scrolling itself;
+     leaving native scroll-behavior:smooth on then makes the two engines fight
+     each other every frame -> the stuttery "trabado" scroll. */
+  html { scroll-behavior: smooth; }
+  /* Official Lenis integration CSS (required) */
+  html.lenis, html.lenis body { height: auto; }
+  html.lenis { scroll-behavior: auto !important; }
+  .lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+  .lenis.lenis-stopped { overflow: hidden; }
+  .lenis.lenis-smooth iframe { pointer-events: none; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    letter-spacing: -0.01em;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+  a { color: inherit; text-decoration: none; }
+
+  /* ============================ background (subtle neutral depth) ============================ */
+  .bg {
+    position: fixed; inset: 0; z-index: -2;
+    background:
+      radial-gradient(60vw 55vw at 6% -8%, rgba(255,255,255,.055), transparent 60%),
+      radial-gradient(46vw 46vw at 104% 108%, rgba(255,255,255,.03), transparent 62%),
+      var(--bg);
+  }
+  .bg::after {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(120vw 120vh at 50% 40%, transparent 55%, rgba(0,0,0,.55));
+    pointer-events: none;
+  }
+
+  /* ============================ liquid-glass nav ============================ */
+  .nav-backdrop { position: fixed; inset: 0; z-index: 55; background: rgba(8,8,9,.4); backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); opacity: 0; pointer-events: none; transition: opacity .3s cubic-bezier(.4,0,.2,1); }
+  .nav-backdrop.active { opacity: 1; pointer-events: auto; }
+  .nav { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 60; width: min(520px, 92vw); }
+  .nav-inner {
+    position: relative;
+    display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px;
+    padding: 13px 15px; border-radius: 10px;
+    background: rgba(13,14,15,.92);
+    backdrop-filter: blur(16px) saturate(130%);
+    -webkit-backdrop-filter: blur(16px) saturate(130%);
+    border: 1px solid rgba(255,255,255,.08);
+    box-shadow: 0 14px 44px rgba(0,0,0,.6);
+    transition: border-radius .25s;
+  }
+  .nav.open .nav-inner { border-bottom-left-radius: 0; border-bottom-right-radius: 0; background: rgba(13,14,15,.55); backdrop-filter: blur(24px) saturate(140%); -webkit-backdrop-filter: blur(24px) saturate(140%); }
+  .brand { font-family: var(--display); font-weight: 700; letter-spacing: .14em; color: var(--cream); font-size: 18px; }
+  .nav-logo { display: inline-flex; color: var(--cream); }
+  .nav-logo svg { display: block; }
+  .nav-rotator {
+    grid-column: 2; justify-self: center;
+    font-family: var(--mono); font-size: 11.5px; font-weight: 500; letter-spacing: 0; text-transform: uppercase;
+    color: #d7d7da; background: none; border: 0; cursor: pointer; padding: 0;
+    white-space: nowrap; transition: color .2s;
+  }
+  .nav-rotator:hover { color: #fff; }
+  .nav-menu-btn {
+    grid-column: 3; justify-self: end;
+    width: 30px; height: 30px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    background: none; border: 0; cursor: pointer; border-radius: 6px; transition: background .2s;
+  }
+  .nav-menu-btn:hover { background: rgba(255,255,255,.06); }
+  .nav-menu-btn span { display: block; width: 16px; height: 1.5px; background: #d7d7da; transition: transform .25s, opacity .2s; }
+  /* open state collapses to a single centered line (—) */
+  .nav.open .nav-menu-btn span:nth-child(1) { opacity: 0; }
+  .nav.open .nav-menu-btn span:nth-child(3) { opacity: 0; }
+  .nav-menu {
+    position: absolute; top: 100%; left: 0; right: 0;
+    background: rgba(13,14,15,.55); backdrop-filter: blur(24px) saturate(140%); -webkit-backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgba(255,255,255,.08); border-top: 0;
+    border-radius: 0 0 10px 10px; overflow: hidden;
+    max-height: 0; opacity: 0; pointer-events: none;
+    transition: max-height .38s cubic-bezier(.4,0,.2,1), opacity .3s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 24px 50px rgba(0,0,0,.65);
+  }
+  .nav.open .nav-menu { max-height: 520px; opacity: 1; pointer-events: auto; }
+  .nav-menu-item {
+    display: block; padding: 17px 20px; color: #e6e6e6; font-size: 1.35rem; font-weight: 500; letter-spacing: -.01em;
+    border-top: 1px solid rgba(255,255,255,.06); transition: background .2s, padding-left .2s, color .2s;
+  }
+  .nav-menu-item:first-child { border-top: 0; }
+  .nav-menu-item:hover { background: rgba(255,255,255,.04); padding-left: 26px; color: #fff; }
+  .nav-menu-cta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; border-top: 1px solid rgba(255,255,255,.06); }
+  .nav-cta-ghost, .nav-cta-solid { font-family: var(--mono); text-transform: uppercase; font-size: 11px; letter-spacing: -.2px; text-align: center; padding: 14px 12px; border-radius: 7px; transition: background .2s, transform .2s, color .2s; }
+  .nav-cta-ghost { border: 1px solid rgba(255,255,255,.14); color: #d7d7da; }
+  .nav-cta-ghost:hover { background: rgba(255,255,255,.05); color: #fff; }
+  .nav-cta-solid { background: #f2f2f0; color: var(--pill-ink); }
+  .nav-cta-solid:hover { transform: translateY(-1px); }
+
+  /* ============================ hero (fixed, collapses) ============================ */
+  .hero-text {
+    position: fixed; top: 0; left: 0; height: 100vh;
+    width: min(32vw, 580px);
+    display: flex; flex-direction: column; justify-content: center; gap: 22px;
+    padding: 0 24px 0 max(24px, 6vw);
+    z-index: 3; transform-origin: center; will-change: transform, opacity;
+  }
+  .eyebrow {
+    align-self: flex-start; display: inline-block; color: var(--muted);
+    font-family: var(--mono); font-size: 11px; letter-spacing: -.2px; font-weight: 500; text-transform: uppercase;
+  }
+  .eyebrow::before { content: "[ "; }
+  .eyebrow::after  { content: " ]"; }
+  .hero-h1 {
+    font-family: var(--display); font-weight: 800; text-transform: uppercase;
+    font-size: clamp(2.3rem, 4.8vw, 5.4rem); line-height: .85; letter-spacing: -.04em;
+    color: var(--ink); white-space: nowrap;   /* keep each word whole; the <br> still splits the two lines */
+  }
+  .hero-h1 .accent { color: #fff; }
+  .hero-sub { max-width: 42ch; color: var(--muted); font-size: 1.05rem; line-height: 1.65; }
+  .btn-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 9px; font-family: var(--mono); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: -.2px;
+    padding: 15px 24px; border-radius: 8px; cursor: pointer; transition: transform .2s, box-shadow .2s, background .2s;
+    border: 1px solid transparent;
+  }
+  .btn-primary { background: #f2f2f0; color: var(--pill-ink); box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+  .btn-primary:hover { transform: translateY(-3px) scale(1.04); box-shadow: 0 16px 40px rgba(255,255,255,.2); }
+  .btn-ghost { background: rgba(255,255,255,.03); border-color: rgba(255,255,255,.16); color: var(--ink); }
+  .btn-ghost:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.4); transform: translateY(-3px) scale(1.04); }
+  .btn-solid { background: #f2f2f0; color: var(--pill-ink); box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+  .btn-solid:hover { transform: translateY(-3px) scale(1.04); box-shadow: 0 18px 44px rgba(255,255,255,.22); }
+
+  /* the interactive portrait (LOCKED positioning) */
+  .portrait-stage {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 66vw;
+    display: flex; align-items: center; justify-content: flex-end;
+    overflow: hidden; z-index: 1; transform-origin: center; will-change: transform, opacity;
+  }
+  #ascii {
+    display: block; image-rendering: pixelated; cursor: default;
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 15%);
+            mask-image: linear-gradient(to right, transparent 0%, #000 15%);
+  }
+  /* ambient data-flow layer */
+  #flow { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1; will-change: opacity; }
+  /* halftone cursor-trail overlay (above content, below nav) */
+  #cursor { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 45; }
+
+  .hero-spacer { height: 100vh; }   /* scroll room for the collapse */
+
+  /* ============================ shared section furniture ============================ */
+  /* clip the horizontal reveal slides (service cards come in from ±170px) so
+     they never push the page wide and cause a sideways scroll on narrow screens */
+  .sections { position: relative; z-index: 4; overflow-x: clip; }
+  .section { max-width: var(--maxw); margin: 0 auto; padding: 120px 24px; scroll-margin-top: 96px; }
+  .kicker {
+    display: inline-block; color: var(--muted);
+    font-family: var(--mono); font-size: 14px; letter-spacing: .02em; font-weight: 500; text-transform: uppercase;
+  }
+  .kicker::before { content: "[ "; }
+  .kicker::after  { content: " ]"; }
+  .section-title {
+    font-family: var(--display); font-weight: 800; letter-spacing: -.03em; line-height: .93;
+    text-shadow: 0 0 40px rgba(255,255,255,.08);
+  }
+  .section-title.xl { font-size: clamp(2.4rem, 5.2vw, 4.6rem); text-align: center; }
+  .section-title.lg { font-size: clamp(2rem, 3.6vw, 3.2rem); }
+
+  /* ---- About ---- */
+  .about { display: grid; grid-template-columns: 1.2fr .9fr; gap: 56px; align-items: center; }
+  .about-text .kicker { margin-bottom: 22px; }
+  .about-text .section-title { margin-bottom: 26px; }
+  .about-text p { color: var(--muted); line-height: 1.75; margin-bottom: 16px; max-width: 54ch; }
+  .stat-card {
+    position: relative; overflow: hidden;
+    background: linear-gradient(155deg, var(--card-top), var(--card-bot));
+    border: 1px solid var(--line); border-radius: 12px; padding: 40px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 34px 24px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.05);
+    transition: transform .3s cubic-bezier(.4,0,.2,1), box-shadow .3s, border-color .3s;
+  }
+  .stat-card:hover { transform: translateY(-6px) scale(1.02); border-color: rgba(255,255,255,.3); box-shadow: 0 44px 100px rgba(0,0,0,.62), inset 0 1px 0 rgba(255,255,255,.08); }
+  .card-fx { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; }
+  .stat-card .stat { position: relative; z-index: 1; border-radius: 8px; padding: 6px 10px; margin: -6px -10px; transition: transform .2s, background .2s; }
+  .stat-card .stat:hover { transform: scale(1.08); background: rgba(255,255,255,.05); }
+  .stat-num { font-family: var(--display); font-weight: 800; font-size: clamp(2.7rem, 4.2vw, 3.7rem); color: #fff; line-height: 1; transition: text-shadow .2s; }
+  .stat-card .stat:hover .stat-num { text-shadow: 0 0 24px rgba(255,255,255,.45); }
+  .stat-label { color: #c7c7cb; font-size: 14.5px; margin-top: 10px; }
+
+  /* ---- What I do ---- */
+  .services-head { text-align: center; margin-bottom: 64px; }
+  .services-head .kicker { margin-bottom: 22px; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .card {
+    position: relative; overflow: hidden; background: linear-gradient(158deg, var(--card-top), var(--card-bot));
+    border: 1px solid var(--line); border-radius: 10px; padding: 30px 30px 32px;
+    transition: transform .25s, box-shadow .25s, border-color .25s;
+  }
+  .card > .card-ic, .card h3, .card p { position: relative; z-index: 1; }
+  .card:hover { transform: translateY(-8px) scale(1.035); border-color: rgba(255,255,255,.4); box-shadow: 0 34px 80px rgba(0,0,0,.62), 0 0 0 1px rgba(255,255,255,.06); z-index: 2; }
+  .card:hover h3 { text-shadow: 0 0 22px rgba(255,255,255,.28); }
+  .card:hover .card-ic { box-shadow: 0 0 22px rgba(255,255,255,.6); transform: rotate(45deg) scale(1.18); }
+  .card-ic { width: 13px; height: 13px; background: var(--accent); border-radius: 3px; transform: rotate(45deg); box-shadow: 0 0 14px rgba(255,255,255,.3); margin-bottom: 20px; transition: transform .25s, box-shadow .25s; }
+  .card h3 { font-family: var(--display); font-weight: 800; font-size: 1.6rem; color: #fff; margin-bottom: 14px; transition: text-shadow .25s; }
+  .card p { color: #d7d5d2; font-size: 15.5px; line-height: 1.68; }
+
+  /* ---- Brands ---- */
+  .brands { text-align: center; }
+  .brands .kicker { margin-bottom: 20px; }
+  .brands .section-title { margin-bottom: 12px; }
+  .brands-sub { color: var(--muted); margin: 0 auto 48px; max-width: 48ch; line-height: 1.6; }
+  .brand-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .brand-chip {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    padding: 26px 18px; border-radius: 14px;
+    border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.02);
+    color: #cbcbcf; font-family: var(--display); font-weight: 700; letter-spacing: .04em; font-size: 1rem;
+    transition: border-color .2s, background .2s, color .2s;
+  }
+  .brand-chip:hover { border-color: var(--line); background: rgba(255,255,255,.05); color: #fff; }
+
+  /* ---- Work ---- */
+  .work-head { margin-bottom: 56px; }
+  .work-head .kicker { margin-bottom: 20px; }
+  .work-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .work-card {
+    border: 1px solid rgba(255,255,255,.08); border-radius: 18px; overflow: hidden;
+    background: rgba(255,255,255,.02); transition: transform .25s, border-color .25s;
+  }
+  .work-card:hover { transform: translateY(-4px); border-color: var(--line); }
+  .work-thumb { height: 176px; background: linear-gradient(145deg, #1b1b1e, #0d0d0f); position: relative; }
+  .work-thumb::after { content: attr(data-tag); position: absolute; left: 16px; top: 14px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--cream); background: rgba(0,0,0,.35); padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); }
+  .work-body { padding: 22px 22px 26px; }
+  .work-body h3 { font-family: var(--display); font-weight: 700; font-size: 1.15rem; margin-bottom: 10px; }
+  .work-body p { color: var(--muted); font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
+  .work-metric { color: #d7d7da; font-weight: 600; font-size: 14px; }
+
+  /* ---- invite band ---- */
+  .cta-band { position: relative; z-index: 4; background: linear-gradient(180deg, #141416 0%, #0b0b0d 100%); padding: 130px 24px; text-align: center; overflow: hidden; border-top: 1px solid rgba(255,255,255,.06); border-bottom: 1px solid rgba(255,255,255,.06); }
+  .cta-band::before { content:""; position:absolute; inset:0; background: radial-gradient(50vw 40vh at 50% 0%, rgba(255,255,255,.06), transparent 65%); pointer-events:none; }
+  .cta-inner { position: relative; max-width: 820px; margin: 0 auto; }
+  .cta-band h2 { font-family: var(--display); font-weight: 700; font-size: clamp(2.4rem, 5vw, 4rem); line-height: 1.02; margin-bottom: 24px; text-shadow: 0 0 44px rgba(255,255,255,.12); }
+  .cta-band p { color: #c7c7ca; max-width: 56ch; margin: 0 auto 40px; font-size: 1.1rem; line-height: 1.65; }
+  .cta-actions { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+
+  /* ---- Contact ---- */
+  .contact { max-width: 720px; }
+  .contact-head { text-align: center; margin-bottom: 44px; }
+  .contact-head .kicker { margin-bottom: 18px; }
+  .contact-head h2 { font-family: var(--display); font-weight: 700; font-size: clamp(1.8rem, 3vw, 2.6rem); margin-bottom: 12px; }
+  .contact-head p { color: var(--muted); }
+  .form-card { background: rgba(18,18,20,.6); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 40px; backdrop-filter: blur(6px); }
+  .form-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; }
+  .field { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+  .field.full { grid-column: 1 / -1; }
+  .field input, .field textarea { width: 100%; min-width: 0; }
+  .field label { font-size: 13.5px; font-weight: 600; color: #e2e0dd; }
+  .field label .opt { color: var(--muted); font-weight: 400; }
+  .field input, .field textarea {
+    background: rgba(0,0,0,.3); border: 1px solid rgba(255,255,255,.1); border-radius: 8px;
+    padding: 13px 15px; color: var(--ink); font-family: var(--sans); font-size: 14px; transition: border-color .2s, box-shadow .2s;
+  }
+  .field input::placeholder, .field textarea::placeholder { color: #6a6a6e; }
+  .field input:focus, .field textarea:focus { outline: none; border-color: #d7d7da; box-shadow: 0 0 0 3px rgba(255,255,255,.1); }
+  .field textarea { resize: vertical; min-height: 130px; }
+  .form-submit { margin-top: 30px; display: flex; justify-content: center; }
+  .form-note { text-align: center; color: #6a6a6e; font-size: 12.5px; margin-top: 16px; }
+
+  /* ---- Footer ---- */
+  footer { position: relative; z-index: 4; border-top: 1px solid rgba(255,255,255,.07); padding: 70px 24px 40px; background: linear-gradient(180deg, transparent, rgba(0,0,0,.4)); }
+  .footer-inner { max-width: var(--maxw); margin: 0 auto; display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 40px; }
+  .footer-brand .brand { font-size: 22px; display: inline-block; margin-bottom: 16px; color: var(--cream); }
+  .footer-brand p { color: var(--muted); font-size: 14px; line-height: 1.65; max-width: 42ch; margin-bottom: 22px; }
+  .socials { display: flex; gap: 10px; }
+  .socials a { width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255,255,255,.12); display: flex; align-items: center; justify-content: center; color: #cbcbcf; transition: border-color .2s, color .2s, background .2s; }
+  .socials a:hover { border-color: rgba(255,255,255,.4); color: #fff; background: rgba(255,255,255,.08); }
+  .socials svg { width: 16px; height: 16px; fill: currentColor; }
+  .footer-col h4 { font-family: var(--display); font-weight: 700; font-size: 1.05rem; margin-bottom: 18px; color: var(--cream); }
+  .footer-col a { display: block; color: var(--muted); font-size: 14px; margin-bottom: 12px; transition: color .2s; }
+  .footer-col a:hover { color: #fff; }
+  .footer-bottom { max-width: var(--maxw); margin: 48px auto 0; padding-top: 26px; border-top: 1px solid rgba(255,255,255,.06); text-align: center; color: #74747a; font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: -.2px; }
+
+  /* ---- Just for Fun ---- */
+  .fun-head { text-align: center; margin-bottom: 56px; }
+  .fun-sub { color: var(--muted); max-width: 48ch; margin: 18px auto 0; line-height: 1.6; }
+  .fun-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .fun-card { display: block; border: 1px solid rgba(255,255,255,.08); border-radius: 10px; padding: 28px; background: rgba(255,255,255,.02); transition: transform .25s, border-color .25s, background .25s; }
+  .fun-card:hover { transform: translateY(-4px); border-color: var(--line); background: rgba(255,255,255,.04); }
+  .fun-tag { display: inline-block; font-family: var(--mono); font-size: 10px; letter-spacing: -.2px; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 4px 9px; margin-bottom: 18px; }
+  .fun-card h3 { font-family: var(--display); font-weight: 700; font-size: 1.2rem; margin-bottom: 10px; color: #fff; }
+  .fun-card p { color: var(--muted); font-size: 14px; line-height: 1.55; }
+
+  /* ---- headline disintegration + scroll reveals (lamalama-style motion) ---- */
+  .hero-h1 .glyph { display: inline-block; will-change: transform, opacity; }
+  .reveal { opacity: 0; transform: translateY(28px); transition: opacity .8s cubic-bezier(.4,0,.2,1), transform .8s cubic-bezier(.4,0,.2,1); }
+  .reveal.in { opacity: 1; transform: none; }
+  /* service cards slide in from the sides and settle side-by-side */
+  .cards .card.reveal { transform: translateX(-170px) scale(.96); opacity: 0; }
+  .cards .card:nth-child(even).reveal { transform: translateX(170px) scale(.96); }
+  .cards .card.reveal.in { transform: none; opacity: 1; }
+  .cards .card.reveal.in:hover { transform: translateY(-4px); }
+  .cards .card:nth-child(2), .fun-grid > *:nth-child(2) { transition-delay: .08s; }
+  .cards .card:nth-child(3), .fun-grid > *:nth-child(3) { transition-delay: .16s; }
+  .cards .card:nth-child(4) { transition-delay: .08s; }
+  .cards .card:nth-child(5) { transition-delay: .16s; }
+  .cards .card:nth-child(6) { transition-delay: .24s; }
+  /* About: heading + copy settle in flat (small lift, staggered like a paragraph
+     being laid down); the stat card glides in from the right into place. */
+  .about { overflow: clip; }   /* contain the stat card's slide, no h-scroll */
+  .about-text .reveal { transform: translateY(12px); }
+  .about-text .section-title.reveal { transform: translateY(16px); }
+  .about-text p.reveal:nth-of-type(1) { transition-delay: .08s; }
+  .about-text p.reveal:nth-of-type(2) { transition-delay: .16s; }
+  .about-text p.reveal:nth-of-type(3) { transition-delay: .24s; }
+  .stat-card.reveal { transform: translateX(130px) scale(.98); opacity: 0; transition-duration: .9s; transition-delay: .12s; }
+  .stat-card.reveal.in { transform: none; opacity: 1; }
+  /* scroll-linked word fill: body copy under a title starts dim and lights up
+     word-by-word as the reader scrolls it through the viewport */
+  .sfill { color: rgba(228,228,233,.15); }
+  .sfill .w { color: inherit; transition: color .14s linear; }
+  .sfill .w.on { color: #eeece8; }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+    .hero-h1 .glyph { transform: none !important; opacity: 1 !important; }
+    .sfill, .sfill .w { color: var(--muted) !important; }
+  }
+
+  /* ---- light "cartographic" zone: Let's Talk + Contact + Footer ---- */
+  .light-zone { position: relative; background: #e9e6df; color: #17171a; }
+  .contour-fx { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+  .light-zone > *:not(.contour-fx) { position: relative; z-index: 1; }
+
+  .cta-band.light-zone { background: #e9e6df; border-top: 1px solid rgba(0,0,0,.1); border-bottom: 1px solid rgba(0,0,0,.1); }
+  .cta-band.light-zone::before { display: none; }
+  .cta-band.light-zone h2 { color: #17171a; text-shadow: none; }
+  .cta-band.light-zone p { color: #45433e; }
+  .cta-band.light-zone .btn-primary { background: #17171a; color: #f2f2f0; box-shadow: 0 10px 24px rgba(0,0,0,.18); }
+  .cta-band.light-zone .btn-ghost { border-color: rgba(0,0,0,.28); color: #17171a; background: transparent; }
+  .cta-band.light-zone .btn-ghost:hover { background: rgba(0,0,0,.06); }
+
+  .contact.light-zone { background: #e9e6df; max-width: none; width: 100%; }
+  .contact.light-zone .contact-head, .contact.light-zone .form-card { max-width: 720px; margin-left: auto; margin-right: auto; }
+  .contact.light-zone .kicker { color: #6a675f; }
+  .contact.light-zone .contact-head h2 { color: #17171a; }
+  .contact.light-zone .contact-head p { color: #45433e; }
+  .contact.light-zone .form-card { background: rgba(255,255,255,.55); border-color: rgba(0,0,0,.12); }
+  .contact.light-zone .field label { color: #2a2925; }
+  .contact.light-zone .field input, .contact.light-zone .field textarea { background: rgba(255,255,255,.72); border-color: rgba(0,0,0,.18); color: #17171a; }
+  .contact.light-zone .field input::placeholder, .contact.light-zone .field textarea::placeholder { color: #8c887f; }
+  .contact.light-zone .field input:focus, .contact.light-zone .field textarea:focus { border-color: #17171a; box-shadow: 0 0 0 3px rgba(0,0,0,.1); }
+  .contact.light-zone .btn-solid { background: #17171a; color: #f2f2f0; }
+  .contact.light-zone .form-note { color: #8c887f; }
+
+  footer.light-zone { background: #e6e3db; border-top: 1px solid rgba(0,0,0,.1); }
+  footer.light-zone .brand { color: #17171a; }
+  footer.light-zone .footer-brand p { color: #55534e; }
+  footer.light-zone .socials a { border-color: rgba(0,0,0,.2); color: #45433e; }
+  footer.light-zone .socials a:hover { border-color: #17171a; color: #17171a; background: rgba(0,0,0,.06); }
+  footer.light-zone .footer-col h4 { color: #17171a; }
+  footer.light-zone .footer-col a { color: #55534e; }
+  footer.light-zone .footer-col a:hover { color: #17171a; }
+  footer.light-zone .footer-bottom { color: #7a776f; border-top-color: rgba(0,0,0,.12); }
+
+  /* ============================ responsive (shell-level) ============================ */
+  @media (max-width: 992px) {
+    .nav-links { display: none; }
+    .about { grid-template-columns: 1fr; gap: 36px; }
+    .cards, .fun-grid, .form-grid, .footer-inner { grid-template-columns: 1fr; }
+    .brand-grid { grid-template-columns: 1fr 1fr; }
+    .hero-text { width: 88vw; }
+    .portrait-stage { opacity: .5; }
+  }
+</style>
+</head>
+<body>
+  <div class="bg"></div>
+
+  <!-- ============================ NAV ============================ -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="#top" class="nav-logo" aria-label="Home">
+        <svg viewBox="0 0 18 16" width="18" height="16" fill="currentColor">
+          <rect x="1" y="6" width="3" height="8"/><rect x="6" y="3" width="3" height="11"/>
+          <rect x="11" y="6" width="3" height="8"/><rect x="6" y="0" width="3" height="2"/>
+        </svg>
+      </a>
+      <button class="nav-rotator" id="navRotator" type="button"><span class="rot-text">ABOUT ME</span></button>
+      <button class="nav-menu-btn" id="navMenuBtn" type="button" aria-label="Menu"><span></span><span></span><span></span></button>
+    </div>
+    <div class="nav-menu" id="navMenu">
+      <a href="#about" class="nav-menu-item">About me</a>
+      <a href="#services" class="nav-menu-item">What I Do</a>
+      <a href="#fun" class="nav-menu-item">Just for Fun</a>
+      <a href="#contact" class="nav-menu-item">Contact me</a>
+      <div class="nav-menu-cta">
+        <a href="#" class="nav-cta-ghost">Follow on X →</a>
+        <a href="#contact" class="nav-cta-solid">Say Hello →</a>
+      </div>
+    </div>
+  </nav>
+  <div class="nav-backdrop" id="navBackdrop"></div>
+
+  <!-- ============================ HERO (fixed, collapses on scroll) ============================ -->
+  <span id="top"></span>
+  <div class="hero-text" id="heroText">
+    <span class="eyebrow">Growth · Marketing · Web3 · AI</span>
+    <h1 class="hero-h1">Hi, I'm<br /><span class="accent">Maverick</span></h1>
+    <p class="hero-sub">I've spent the last few years helping projects and communities grow — mostly in crypto, lately in AI. I care about the craft of it: the strategy, the people, and the stories that make things spread.</p>
+    <div class="btn-row">
+      <a href="#about" class="btn btn-primary">More About Me →</a>
+      <a href="#contact" class="btn btn-ghost">Contact me</a>
+    </div>
+  </div>
+
+  <section class="portrait-stage" id="portraitStage">
+    <canvas id="ascii"></canvas>
+  </section>
+  <!-- ambient data-flow overlay (node + streams + divider line) -->
+  <canvas id="flow"></canvas>
+  <!-- halftone cursor-trail overlay -->
+  <canvas id="cursor"></canvas>
+
+  <div class="hero-spacer"></div>
+
+  <!-- ============================ SECTIONS ============================ -->
+  <main class="sections">
+
+    <!-- ABOUT -->
+    <section id="about" class="section about">
+      <div class="about-text">
+        <span class="kicker">About</span>
+        <h2 class="section-title lg">A Bit About Me</h2>
+        <p>I'm Maverick. For the last few years I've worked at the intersection of growth, marketing, and community — mostly in crypto, and more recently in AI.</p>
+        <p>I'm less interested in hype and more in the craft: how ideas find the right people, how communities actually stick around, and how a good story turns attention into something real. I've advised founders, helped teams find their footing, and grown communities from a cold start.</p>
+        <p>When I'm not doing that, I'm usually deep in some new rabbit hole — a protocol, a tool, a market I want to understand. Curiosity is basically the job. <em>(Placeholder — send me the real details and I'll make this genuinely you.)</em></p>
+      </div>
+      <div class="stat-card">
+        <canvas class="card-fx" aria-hidden="true"></canvas>
+        <div class="stat"><div class="stat-num">6+</div><div class="stat-label">Years in the space</div></div>
+        <div class="stat"><div class="stat-num">40+</div><div class="stat-label">Projects advised</div></div>
+        <div class="stat"><div class="stat-num">25K+</div><div class="stat-label">Community built</div></div>
+        <div class="stat"><div class="stat-num">10+</div><div class="stat-label">Ecosystems explored</div></div>
+      </div>
+    </section>
+
+    <!-- WHAT I DO -->
+    <section id="services" class="section">
+      <div class="services-head">
+        <span class="kicker">What I Do</span>
+        <h2 class="section-title xl" style="margin-top:22px">Things I Work On</h2>
+      </div>
+      <div class="cards">
+        <div class="card">
+          <canvas class="card-fx" aria-hidden="true"></canvas>
+          <div class="card-ic"></div>
+          <h3>Growth &amp; Systems</h3>
+          <p>I like designing the whole system — how people first hear about something and how they end up sticking around. Positioning, funnels, go-to-market for launches, and the unglamorous plumbing that makes growth repeatable.</p>
+        </div>
+        <div class="card">
+          <canvas class="card-fx" aria-hidden="true"></canvas>
+          <div class="card-ic"></div>
+          <h3>Creators &amp; KOLs</h3>
+          <p>I enjoy working with creators as real partners, not one-off posts. Finding the right voices, building genuine relationships, and letting them tell the story their own way.</p>
+        </div>
+        <div class="card">
+          <canvas class="card-fx" aria-hidden="true"></canvas>
+          <div class="card-ic"></div>
+          <h3>Partnerships</h3>
+          <p>Some of the best growth comes from the right collaboration. I've sourced and structured ecosystem partnerships and co-marketing deals — connecting the right teams in ways that actually make sense for everyone.</p>
+        </div>
+        <div class="card">
+          <canvas class="card-fx" aria-hidden="true"></canvas>
+          <div class="card-ic"></div>
+          <h3>AI &amp; Automation</h3>
+          <p>I'm fascinated by how AI is changing the work — scaling content, personalizing the way we reach people, and quietly taking the busywork off everyone's plate.</p>
+        </div>
+        <div class="card">
+          <canvas class="card-fx" aria-hidden="true"></canvas>
+          <div class="card-ic"></div>
+          <h3>Story &amp; Narrative</h3>
+          <p>I care a lot about story. Positioning, messaging, and the narrative that makes people actually care about what you're building instead of scrolling past it.</p>
+        </div>
+        <div class="card">
+          <canvas class="card-fx" aria-hidden="true"></canvas>
+          <div class="card-ic"></div>
+          <h3>Community</h3>
+          <p>I've built and grown communities from a cold start — onboarding, engagement, retention, the human stuff that turns a follower count into a real place people want to be. I've taken one from zero to 25K.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- JUST FOR FUN -->
+    <section id="fun" class="section fun">
+      <div class="fun-head">
+        <span class="kicker">Just for Fun - Highlights</span>
+        <h2 class="section-title lg" style="margin-top:20px">Things I Tinker With</h2>
+        <p class="fun-sub">Side projects, experiments, and random things I build when I'm curious. I'll drop them here as they happen — more soon.</p>
+      </div>
+      <div class="fun-grid">
+        <a class="fun-card" href="#"><span class="fun-tag">Experiment</span><h3>Coming soon</h3><p>A spot for a side project or experiment I've been playing with.</p></a>
+        <a class="fun-card" href="#"><span class="fun-tag">Build</span><h3>Coming soon</h3><p>Another thing I've been tinkering with on the side.</p></a>
+        <a class="fun-card" href="#"><span class="fun-tag">Idea</span><h3>Coming soon</h3><p>Placeholder for whatever curiosity comes next.</p></a>
+      </div>
+    </section>
+  </main>
+
+  <!-- INVITE BAND -->
+  <section class="cta-band light-zone">
+    <canvas class="contour-fx" aria-hidden="true"></canvas>
+    <div class="cta-inner">
+      <h2>Let's Talk</h2>
+      <p>I'm always up for a good conversation — about growth, crypto, AI, or whatever you're building. No pitch, no pressure. Just say hi.</p>
+      <div class="cta-actions">
+        <a href="#contact" class="btn btn-primary">Contact me ↓</a>
+        <a href="#" class="btn btn-ghost">Find Me on X →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONTACT -->
+  <section id="contact" class="section contact">
+    <div class="contact-head">
+      <span class="kicker">Get in Touch</span>
+      <h2>Say Hello</h2>
+      <p>Drop me a line and I'll get back to you. I read everything.</p>
+    </div>
+    <form class="form-card" id="applyForm" action="https://formsubmit.co/maverick.eth.11@gmail.com" method="POST">
+      <!-- FormSubmit config (free, no backend). JS submits via AJAX; these also
+           make a plain POST work if JS is disabled. -->
+      <input type="hidden" name="_subject" value="New message from your site — Say Hello">
+      <input type="hidden" name="_template" value="table">
+      <input type="hidden" name="_captcha" value="false">
+      <input type="text" name="_honey" style="display:none" tabindex="-1" autocomplete="off">
+      <div class="form-grid">
+        <div class="field">
+          <label>Your name</label>
+          <input type="text" name="name" size="1" placeholder="What should I call you?" required />
+        </div>
+        <div class="field">
+          <label>Your email</label>
+          <input type="email" name="email" size="1" placeholder="you@example.com" required />
+        </div>
+        <div class="field full">
+          <label>A link <span class="opt">(optional)</span></label>
+          <input type="url" name="link" size="1" placeholder="Your project, your X, anything you'd like me to see" />
+        </div>
+        <div class="field full">
+          <label>What's on your mind?</label>
+          <textarea name="message" rows="4" cols="1" placeholder="Tell me what you're working on, or what you'd like to talk about…" required></textarea>
+        </div>
+      </div>
+      <div class="form-submit">
+        <button type="submit" class="btn btn-solid">Send Message →</button>
+      </div>
+      <p class="form-note">Your message goes straight to my inbox. No newsletter, no spam.</p>
+    </form>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="light-zone">
+    <canvas class="contour-fx" aria-hidden="true"></canvas>
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <span class="brand">MAVERICK</span>
+        <p>Growth, marketing &amp; community — mostly in crypto, lately in AI. Building, advising, and endlessly curious.</p>
+        <div class="socials">
+          <a href="#" aria-label="X"><svg viewBox="0 0 24 24"><path d="M18.9 2H22l-7.5 8.6L23 22h-6.8l-5-6.6L5.4 22H2.3l8-9.2L1.6 2h6.9l4.6 6.1L18.9 2Zm-1.2 18h1.9L7.1 4H5.1l12.6 16Z"/></svg></a>
+          <a href="#" aria-label="Telegram"><svg viewBox="0 0 24 24"><path d="M21.9 4.3 18.7 19c-.2 1-.9 1.3-1.8.8l-5-3.7-2.4 2.3c-.3.3-.5.5-1 .5l.3-4.9 8.9-8c.4-.3-.1-.5-.6-.2L4.8 13 0 11.5c-1-.3-1-.9.2-1.4l19.3-7.4c.9-.3 1.7.2 1.4 1.6Z"/></svg></a>
+          <a href="#" aria-label="Email"><svg viewBox="0 0 24 24"><path d="M2 5.5A1.5 1.5 0 0 1 3.5 4h17A1.5 1.5 0 0 1 22 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-17A1.5 1.5 0 0 1 2 18.5v-13Zm2.4.5 7.6 5.4L19.6 6H4.4ZM20 7.5l-8 5.6-8-5.6v11h16v-11Z"/></svg></a>
+        </div>
+      </div>
+      <div class="footer-col">
+        <h4>Explore</h4>
+        <a href="#about">About me</a>
+        <a href="#services">What I Do</a>
+        <a href="#fun">Just for Fun</a>
+        <a href="#contact">Contact</a>
+      </div>
+      <div class="footer-col">
+        <h4>Elsewhere</h4>
+        <a href="#">X / Twitter</a>
+        <a href="#">Telegram</a>
+        <a href="#">Email</a>
+      </div>
+    </div>
+    <div class="footer-bottom">© 2026 Maverick. Made with curiosity.</div>
+  </footer>
+
+<script src="https://unpkg.com/lenis@1.1.14/dist/lenis.min.js"></script>
+<script>
+/* ============================================================
+   Interactive ASCII portrait
+   - Samples an image into a grid of {char, r,g,b, brightness}
+   - Renders grayscale on a canvas
+   - Mouse "spotlight": reveals original color + distorts glyphs
+   ============================================================ */
+
+const CONFIG = {
+  src: 'avatar.png',      // <-- your avatar file, sitting next to this HTML
+  cols: 150,              // horizontal resolution (characters). Higher = more detail, more cost
+  charAspect: 1.0,        // rows:cols ratio for the square avatar (1.0 keeps it undistorted)
+  fontSize: 8,            // px per cell on screen (scales the whole portrait)
+  // ===== POSITIONING — LOCKED (approved 2026-07-07). DO NOT CHANGE. =====
+  // Also locked: .portrait-stage CSS (fixed right, 66vw, align center, flex-end,
+  // overflow hidden) and #ascii left-edge fade mask.
+  crop: { x: 0.0, y: 0.0, w: 1.0, h: 1.0 },  // full avatar (no zoom) — head + shoulders + body
+  fillHeight: 0.96,       // portrait height as a fraction of the viewport
+  bleedRight: 0.05,       // fraction of the portrait width pushed off the right edge
+  // ===== END LOCKED POSITIONING =====
+  ramp: '@%#WM$B8&*oahkbdpqwmZOQLCJUYXzcvunxrjft/\\|()1{}[]?-_+~<>i!lI;:,"^`\'. ',
+  reveal: {
+    radius: 165,          // reveal radius in px around each trail point
+    distort: 14,          // max glyph displacement in px near the cursor
+    scramble: 0.32,       // 0..1 chance a near-cursor glyph swaps to a random ramp char
+    trailPersist: 0.45,   // seconds a trail point lingers before fading out
+    trailSpacing: 7,      // min px between recorded trail points
+    trailMax: 28,         // max trail points kept
+  },
+  anim: {
+    enabled: true,
+    shimmer: 14,          // brightness wobble amplitude (a slow breathing glow)
+    shimmerSpeed: 1.6,    // how fast the shimmer wave travels
+    flicker: 0.015,       // fraction of cells that randomly flicker each frame
+  },
+};
+
+const canvas = document.getElementById('ascii');
+const ctx = canvas.getContext('2d');
+
+let grid = [];            // { ch, r, g, b } per cell
+let gridCols = 0, gridRows = 0;
+let cell = CONFIG.fontSize;
+const pointer = { x: -9999, y: -9999, active: false };
+const trail = [];   // recent cursor samples { x, y, born(ms) } — newest last
+
+// Map 0..255 brightness -> a glyph from the ramp (dark pixel = dense glyph)
+function charForBrightness(b) {
+  const ramp = CONFIG.ramp;
+  const idx = Math.floor((1 - b / 255) * (ramp.length - 1));
+  return ramp[Math.min(ramp.length - 1, Math.max(0, idx))];
+}
+
+function buildGrid(img) {
+  // Optional source crop (fractions of the image) to zoom into the head
+  const cr = CONFIG.crop || { x: 0, y: 0, w: 1, h: 1 };
+  const sx = cr.x * img.width, sy = cr.y * img.height;
+  const sw = cr.w * img.width, sh = cr.h * img.height;
+
+  gridCols = CONFIG.cols;
+  gridRows = Math.round((sh / sw) * gridCols * CONFIG.charAspect);
+
+  // Draw the (cropped) image small onto an offscreen canvas and read the pixels
+  const off = document.createElement('canvas');
+  off.width = gridCols;
+  off.height = gridRows;
+  const octx = off.getContext('2d', { willReadFrequently: true });
+  octx.imageSmoothingEnabled = false;
+  octx.drawImage(img, sx, sy, sw, sh, 0, 0, gridCols, gridRows);
+  const data = octx.getImageData(0, 0, gridCols, gridRows).data;
+
+  grid = new Array(gridCols * gridRows);
+  for (let y = 0; y < gridRows; y++) {
+    for (let x = 0; x < gridCols; x++) {
+      const i = (y * gridCols + x) * 4;
+      const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+      // Perceptual luminance
+      const bright = a === 0 ? 255 : 0.299 * r + 0.587 * g + 0.114 * b;
+      grid[y * gridCols + x] = { ch: charForBrightness(bright), r, g, b, a };
+    }
+  }
+}
+
+function layout() {
+  cell = CONFIG.fontSize;
+  canvas.width = gridCols * cell;
+  canvas.height = gridRows * cell;
+  // Size the portrait to fill the viewport height, then push it off the right edge
+  const targetH = window.innerHeight * CONFIG.fillHeight;
+  const scale = targetH / canvas.height;
+  canvas.style.width = Math.round(canvas.width * scale) + 'px';
+  canvas.style.height = Math.round(canvas.height * scale) + 'px';
+  canvas.style.transform = `translateX(${CONFIG.bleedRight * 100}%)`;
+  ctx.font = `${cell}px "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace`;
+  ctx.textBaseline = 'top';
+}
+
+function draw(time) {
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg') || '#000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const A = CONFIG.anim;
+  const rev = CONFIG.reveal;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const Rc = rev.radius * scaleX;            // reveal radius in canvas px
+  const Rc2 = Rc * Rc;
+  const persistMs = rev.trailPersist * 1000;
+  const nowMs = performance.now();
+
+  // scroll-collapse progress (0..1) + the orb's position in canvas pixels, so
+  // each glyph can be drawn flying toward the beeping orb individually.
+  const C = window.__collapse || 0;
+  const orbX = (0.46 * window.innerWidth  - rect.left) * scaleX;
+  const orbY = (0.50 * window.innerHeight - rect.top ) * scaleX;
+
+  // Prune expired trail points, then build the active set in canvas px.
+  while (trail.length && nowMs - trail[0].born > persistMs) trail.shift();
+  const pts = [];
+  let bMinX = Infinity, bMinY = Infinity, bMaxX = -Infinity, bMaxY = -Infinity;
+  for (let i = 0; i < trail.length; i++) {
+    const age = nowMs - trail[i].born;
+    const s = 1 - age / persistMs;           // 1 fresh -> 0 old (fading tail)
+    const tx = (trail[i].x - rect.left) * scaleX;
+    const ty = (trail[i].y - rect.top) * scaleX;
+    pts.push(tx, ty, s);                      // flat array: [x, y, strength, ...]
+    if (tx < bMinX) bMinX = tx; if (tx > bMaxX) bMaxX = tx;
+    if (ty < bMinY) bMinY = ty; if (ty > bMaxY) bMaxY = ty;
+  }
+  const hasTrail = pts.length > 0;
+  bMinX -= Rc; bMinY -= Rc; bMaxX += Rc; bMaxY += Rc;   // expand box by radius
+
+  for (let y = 0; y < gridRows; y++) {
+    for (let x = 0; x < gridCols; x++) {
+      const c = grid[y * gridCols + x];
+      if (c.a === 0) continue;               // skip transparent background
+      let dx = x * cell, dy = y * cell;
+      const cx = dx + cell / 2, cy = dy + cell / 2;
+
+      // Strongest influence from the trail (comet tail: newest = brightest).
+      let influence = 0;
+      if (hasTrail && cx >= bMinX && cx <= bMaxX && cy >= bMinY && cy <= bMaxY) {
+        for (let i = 0; i < pts.length; i += 3) {
+          const ddx = cx - pts[i], ddy = cy - pts[i + 1];
+          const d2 = ddx * ddx + ddy * ddy;
+          if (d2 < Rc2) {
+            const t = 1 - Math.sqrt(d2) / Rc;          // 1 at point -> 0 at edge
+            const contrib = pts[i + 2] * t * t * (3 - 2 * t);  // smoothstep: no hard ring
+            if (contrib > influence) influence = contrib;
+          }
+        }
+      }
+
+      let ch = c.ch;
+      if (influence > 0) {
+        const ease = influence * influence;  // 1 at core -> 0 at edge
+        const gr = 0.299 * c.r + 0.587 * c.g + 0.114 * c.b;
+        const rr = Math.round(gr + (c.r - gr) * ease);
+        const gg = Math.round(gr + (c.g - gr) * ease);
+        const bb = Math.round(gr + (c.b - gr) * ease);
+        ctx.fillStyle = `rgb(${rr},${gg},${bb})`;
+
+        // distortion: scatter each glyph in its OWN stable random direction
+        // (not radially outward) so the displacement never forms a round bubble
+        const h = (x * 73856093) ^ (y * 19349663);
+        const ang = ((h >>> 0) % 6283) / 1000;   // stable per-cell angle 0..2π
+        const push = rev.distort * ease * scaleX;
+        dx += Math.cos(ang) * push;
+        dy += Math.sin(ang) * push;
+        if (Math.random() < rev.scramble * ease) {
+          ch = CONFIG.ramp[(Math.random() * (CONFIG.ramp.length - 1)) | 0];
+        }
+      } else {
+        // grayscale base — tie ink brightness to the pixel's luminance
+        const gr = 0.299 * c.r + 0.587 * c.g + 0.114 * c.b;
+        let v = 95 + (gr / 255) * 160;                 // 95..255 — brighter so the portrait reads clearly
+        if (A.enabled) {
+          // slow breathing shimmer travelling across the grid
+          v += Math.sin(time * A.shimmerSpeed + x * 0.25 + y * 0.18) * A.shimmer;
+          // sparse random flicker: brief bright glyph swaps (ink cells only,
+          // so the black background around the portrait stays clean)
+          if (ch !== ' ' && Math.random() < A.flicker) {
+            v += 60;
+            ch = CONFIG.ramp[(Math.random() * (CONFIG.ramp.length - 1)) | 0];
+          }
+        }
+        v = Math.max(0, Math.min(255, Math.round(v)));
+        ctx.fillStyle = `rgb(${v},${v},${v})`;
+      }
+
+      // ---- scroll-collapse: each glyph disintegrates on its OWN staggered
+      // timeline, accelerating toward the orb with a little scatter, and fading
+      // out before it fully arrives — so the portrait is absorbed grain by grain
+      // instead of shrinking away as one block. ----
+      if (C > 0) {
+        const hh = ((x * 92837111) ^ (y * 689287499)) >>> 0;
+        const ord = (hh % 1000) / 1000;                    // stable per-cell order
+        const raw = (C - ord * 0.34) / 0.5;
+        const e = raw <= 0 ? 0 : raw >= 1 ? 1 : raw * raw * (3 - 2 * raw);
+        if (e > 0) {
+          const acc = Math.pow(e, 1.7);                    // suction: accelerate inward
+          dx += (orbX - (dx + cell / 2)) * acc;
+          dy += (orbY - (dy + cell / 2)) * acc;
+          const ang = ord * 6.2832;                        // stable scatter direction
+          const sw = 26 * scaleX * Math.sin(e * Math.PI) * (1 - e);
+          dx += Math.cos(ang) * sw;
+          dy += Math.sin(ang) * sw;
+          let a = 1 - (e - 0.5) / 0.4;                     // dissolve over the flight
+          if (a < 0) a = 0; else if (a > 1) a = 1;
+          if (a < 1) {
+            ctx.globalAlpha = a;
+            ctx.fillText(ch, dx, dy);
+            ctx.globalAlpha = 1;
+            continue;
+          }
+        }
+      }
+      ctx.fillText(ch, dx, dy);
+    }
+  }
+}
+
+let raf;
+let t0 = performance.now();
+function loop() {
+  const time = (performance.now() - t0) / 1000;
+  // only pay for the (expensive) portrait render while the hero is on screen
+  if (window.scrollY < window.innerHeight * 1.4) draw(time);
+  raf = requestAnimationFrame(loop);
+}
+
+// ---- pointer wiring ----
+canvas.addEventListener('pointermove', (e) => {
+  pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true;
+  // record a trail point once the cursor has moved far enough
+  const last = trail[trail.length - 1];
+  if (!last || Math.hypot(e.clientX - last.x, e.clientY - last.y) >= CONFIG.reveal.trailSpacing) {
+    trail.push({ x: e.clientX, y: e.clientY, born: performance.now() });
+    if (trail.length > CONFIG.reveal.trailMax) trail.shift();
+  }
+});
+canvas.addEventListener('pointerleave', () => { pointer.active = false; });
+window.addEventListener('resize', layout);
+
+// ---- boot ----
+const img = new Image();
+img.crossOrigin = 'anonymous';
+img.onload = () => { buildGrid(img); layout(); cancelAnimationFrame(raf); loop(); };
+img.onerror = () => {
+  document.querySelector('.portrait-stage').insertAdjacentHTML(
+    'beforeend',
+    '<p style="position:absolute;color:#e05a5a;font-family:monospace;padding:1rem;text-align:center">' +
+    'Could not load <b>' + CONFIG.src + '</b>.<br>Drop your avatar image next to index.html with that name.</p>'
+  );
+};
+img.src = CONFIG.src;
+</script>
+
+<script>
+/* ============================================================
+   Ambient data-flow layer  (independent of the portrait)
+   Narrative:  portrait  --glyphs-->  [ sonar node ]  --glyphs-->  divider line
+   - ASCII glyphs peel off the portrait and stream into a central
+     "beeping" sonar node, which pings on a steady beat and then
+     releases glyphs outward onto the left divider line.
+   - Purely ambient + non-interactive (pointer-events: none), so the
+     portrait's hover spotlight keeps working underneath.
+   All tunables live in FLOW.
+   ============================================================ */
+(function () {
+  const fcanvas = document.getElementById('flow');
+  const fctx = fcanvas.getContext('2d');
+  const asciiEl = document.getElementById('ascii');   // the portrait canvas
+  let aRect = null;                                    // its live on-screen rect
+  // NOTE: grid / gridCols / gridRows are owned by the portrait script above;
+  // we only READ them here to peel real cells off the portrait.
+
+  const FLOW = {
+    accent: [200, 200, 200],   // neutral ink — matches the portrait's still grayscale
+    hot:    [238, 238, 238],   // brighter near-white for the core / near-node glyphs
+    red:    [176, 176, 176],   // the divider line (same neutral palette)
+    // node = the "beeping start" in the middle gap
+    node:   { xf: 0.46, yf: 0.50, coreR: 6, beat: 2.3, ringSpeed: 66, ringFade: 1.3 },
+    // line = the left divider the flow arrives at
+    line:   { xf: 0.335, y0f: 0.22, y1f: 0.80 },
+    // inbound tendrils are "born" from two roots on the portrait (user-marked spots)
+    inRootTop: { xf: 0.635, yf: 0.245 },
+    inRootBot: { xf: 0.66,  yf: 0.735 },
+    emitIn: 0.10,              // seconds between inbound (portrait->node) glyphs
+    emitOut: 0.17,             // seconds between outbound (node->line) glyphs
+    maxParticles: 90,
+    glyphSize: 12,
+    conduits: 5,               // number of curved "tendrils" each side
+    rootRadius: 7,             // cells of portrait sampled around each root (the "bite")
+    glyphs: '#%@&$*ohkbdpqwmZO0XY><+=/\\|!?',
+  };
+
+  let W = 0, H = 0, dpr = 1;
+  const node = { x: 0, y: 0, beatAcc: 0, flash: 0 };
+  const line = { x: 0, y0: 0, y1: 0 };
+  const IN = [], OUT = [];        // curved conduits (bezier tendrils)
+  const particles = [], rings = [], blips = [];
+
+  const rnd  = (a, b) => a + Math.random() * (b - a);
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const mix  = (c1, c2, t) => [lerp(c1[0], c2[0], t), lerp(c1[1], c2[1], t), lerp(c1[2], c2[2], t)];
+  const rgba = (c, a) => `rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`;
+  const glyph = () => FLOW.glyphs[(Math.random() * FLOW.glyphs.length) | 0];
+  const bez = (p, a, b, c, d) => { const m = 1 - p; return m*m*m*a + 3*m*m*p*b + 3*m*p*p*c + p*p*p*d; };
+  const at  = (cd, t) => ({ x: bez(t, cd.S.x, cd.c1.x, cd.c2.x, cd.T.x),
+                            y: bez(t, cd.S.y, cd.c1.y, cd.c2.y, cd.T.y) });
+
+  // Build a curved conduit S->T, bowed sideways by index k so the set fans out.
+  function mkConduit(S, T, k) {
+    const dx = T.x - S.x, dy = T.y - S.y, len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len, ny = dx / len;
+    const bow = k * 0.12 * len + rnd(-0.03, 0.03) * len;
+    return {
+      S: { x: S.x, y: S.y }, T: { x: T.x, y: T.y }, k,
+      c1: { x: S.x + dx * 0.33 + nx * bow,       y: S.y + dy * 0.33 + ny * bow },
+      c2: { x: S.x + dx * 0.66 + nx * bow * 0.6, y: S.y + dy * 0.66 + ny * bow * 0.6 },
+    };
+  }
+
+  function geometry() {
+    node.x = FLOW.node.xf * W; node.y = FLOW.node.yf * H;
+    line.x = FLOW.line.xf * W; line.y0 = FLOW.line.y0f * H; line.y1 = FLOW.line.y1f * H;
+    IN.length = 0; OUT.length = 0;
+    const n = FLOW.conduits;
+    const rT = FLOW.inRootTop, rB = FLOW.inRootBot;
+    for (let i = 0; i < n; i++) {
+      const f = i / (n - 1);
+      // inbound tendrils are born from the two marked roots on the portrait,
+      // fanning between the top root and the bottom root
+      const S = { x: lerp(rT.xf, rB.xf, f) * W,
+                  y: lerp(rT.yf, rB.yf, f) * H + rnd(-0.012, 0.012) * H };
+      IN.push(mkConduit(S, node, i - (n - 1) / 2));
+      // outbound: node -> spread of points along the divider line
+      const T = { x: line.x, y: line.y0 + (i / (n - 1)) * (line.y1 - line.y0) };
+      OUT.push(mkConduit(node, T, i - (n - 1) / 2));
+    }
+  }
+
+  function size() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    fcanvas.width = W * dpr; fcanvas.height = H * dpr;
+    fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    geometry();
+  }
+
+  // Pull a real cell off the portrait near a viewport point, so the flow looks
+  // like it decomposes the portrait itself. Returns null if that spot is empty.
+  function sampleCellNear(vx, vy, radCells) {
+    if (!grid || !gridCols || !grid.length || !aRect) return null;
+    const cw = aRect.width / gridCols, chh = aRect.height / gridRows;
+    const gx0 = (vx - aRect.left) / cw, gy0 = (vy - aRect.top) / chh;
+    for (let tries = 0; tries < 10; tries++) {
+      const gx = Math.round(gx0 + rnd(-radCells, radCells));
+      const gy = Math.round(gy0 + rnd(-radCells, radCells));
+      if (gx < 0 || gy < 0 || gx >= gridCols || gy >= gridRows) continue;
+      const c = grid[gy * gridCols + gx];
+      if (!c || c.a === 0) continue;                 // skip transparent background
+      const gr = 0.299 * c.r + 0.587 * c.g + 0.114 * c.b;
+      return { x: aRect.left + (gx + 0.5) * cw, y: aRect.top + (gy + 0.5) * chh,
+               ch: c.ch, v: 60 + gr / 255 * 175 };   // portrait's own glyph + ink
+    }
+    return null;
+  }
+
+  function spawn(dir) {
+    if (dir === 'in') {
+      const C = window.__collapse || 0;
+      if (C > 0.12 && aRect) {
+        // COLLAPSE: disintegrate the WHOLE portrait — peel cells from anywhere on
+        // it and rush them into the orb (fast, fanned).
+        const vx = aRect.left + Math.random() * aRect.width;
+        const vy = aRect.top  + Math.random() * aRect.height;
+        const s = sampleCellNear(vx, vy, 3);
+        const start = s ? { x: s.x, y: s.y } : { x: vx, y: vy };
+        const cd = mkConduit(start, node, rnd(-2.2, 2.2));
+        particles.push({ dir, cd, t: 0, speed: 1 / rnd(0.6, 1.5),
+                         g0: s ? s.ch : glyph(), v: s ? s.v : 185 });
+        return;
+      }
+      // peel a real cell off the portrait near one of the roots and drag it in
+      const cd0 = IN[(Math.random() * IN.length) | 0];
+      const s = sampleCellNear(cd0.S.x, cd0.S.y, FLOW.rootRadius);
+      const start = s ? { x: s.x, y: s.y } : { x: cd0.S.x, y: cd0.S.y };
+      const cd = mkConduit(start, node, cd0.k);
+      particles.push({ dir, cd, t: 0, speed: 1 / rnd(2.8, 4.2),
+                       g0: s ? s.ch : glyph(), v: s ? s.v : 170 });
+    } else {
+      // node -> line release
+      const cd = OUT[(Math.random() * OUT.length) | 0];
+      particles.push({ dir, cd, t: 0, speed: 1 / rnd(1.8, 2.8), g: glyph(), endY: cd.T.y });
+    }
+  }
+
+  function drawConduits(set) {
+    fctx.lineWidth = 1;
+    fctx.strokeStyle = rgba(FLOW.accent, 0.05);
+    for (const cd of set) {
+      fctx.beginPath();
+      fctx.moveTo(cd.S.x, cd.S.y);
+      fctx.bezierCurveTo(cd.c1.x, cd.c1.y, cd.c2.x, cd.c2.y, cd.T.x, cd.T.y);
+      fctx.stroke();
+    }
+  }
+
+  function drawLineBase() {
+    // soft outer glow (additive) so the divider reads against the black
+    fctx.globalCompositeOperation = 'lighter';
+    const glow = fctx.createLinearGradient(0, line.y0, 0, line.y1);
+    glow.addColorStop(0,   rgba(FLOW.red, 0));
+    glow.addColorStop(0.5, rgba(FLOW.red, 0.18));
+    glow.addColorStop(1,   rgba(FLOW.red, 0));
+    fctx.strokeStyle = glow; fctx.lineWidth = 6;
+    fctx.beginPath(); fctx.moveTo(line.x, line.y0); fctx.lineTo(line.x, line.y1); fctx.stroke();
+    // crisp core line
+    fctx.globalCompositeOperation = 'source-over';
+    const core = fctx.createLinearGradient(0, line.y0, 0, line.y1);
+    core.addColorStop(0,   rgba(FLOW.red, 0));
+    core.addColorStop(0.5, rgba(FLOW.red, 0.9));
+    core.addColorStop(1,   rgba(FLOW.red, 0));
+    fctx.strokeStyle = core; fctx.lineWidth = 2;
+    fctx.beginPath(); fctx.moveTo(line.x, line.y0); fctx.lineTo(line.x, line.y1); fctx.stroke();
+  }
+
+  function drawParticle(p) {
+    if (p.dir === 'in') {
+      // decomposing: starts as the portrait's own glyph+ink, then breaks apart
+      for (let k = 2; k >= 0; k--) {
+        const tt = p.t - k * 0.030;
+        if (tt < 0) continue;
+        const pos = at(p.cd, tt);
+        const jit = tt * 7;                          // scatter grows as it disintegrates
+        const jx = (Math.random() - 0.5) * jit, jy = (Math.random() - 0.5) * jit;
+        let a = 1;
+        if (tt > 0.80) a = (1 - tt) / 0.20;          // dissolves into the node
+        a *= (1 - k * 0.32);
+        const vv = p.v * (0.7 + 0.3 * (1 - tt));      // brightest at the portrait, dims inward
+        let g = p.g0;                                 // its real character...
+        if (tt > 0.4 && Math.random() < (tt - 0.4) * 1.3) {
+          g = FLOW.glyphs[(Math.random() * FLOW.glyphs.length) | 0];  // ...scrambling apart
+        }
+        fctx.fillStyle = rgba([vv, vv, vv], a);
+        fctx.fillText(g, pos.x + jx, pos.y + jy);
+      }
+    } else {
+      for (let k = 2; k >= 0; k--) {                 // node -> line release
+        const tt = p.t - k * 0.028;
+        if (tt < 0) continue;
+        const pos = at(p.cd, tt);
+        let a = 1;
+        if (tt < 0.12) a = tt / 0.12;
+        else if (tt > 0.88) a = (1 - tt) / 0.12;
+        a *= (1 - k * 0.3);
+        const col = mix(FLOW.hot, FLOW.accent, Math.min(1, tt));
+        fctx.fillStyle = rgba(col, a);
+        fctx.fillText(p.g, pos.x, pos.y);
+      }
+    }
+  }
+
+  function drawNode(dt) {
+    for (let i = rings.length - 1; i >= 0; i--) {  // sonar rings
+      const r = rings[i];
+      r.r += FLOW.node.ringSpeed * dt;
+      r.a -= dt / FLOW.node.ringFade;
+      if (r.a <= 0) { rings.splice(i, 1); continue; }
+      fctx.beginPath(); fctx.arc(node.x, node.y, r.r, 0, Math.PI * 2);
+      fctx.strokeStyle = rgba(FLOW.accent, r.a * 0.28); fctx.lineWidth = 1; fctx.stroke();
+    }
+    const C = window.__collapse || 0;
+    const idle = 1.0 * Math.sin(performance.now() * 0.005);
+    const cr = FLOW.node.coreR + idle + node.flash * 3 + C * 13;      // orb swells as it absorbs
+    const grd = fctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, cr * 4);
+    const bright = Math.min(1.25, 0.55 + 0.25 * node.flash + C * 0.5);
+    grd.addColorStop(0,   rgba(FLOW.hot, 0.55 * bright));
+    grd.addColorStop(0.4, rgba(FLOW.accent, 0.2 * bright));
+    grd.addColorStop(1,   rgba(FLOW.accent, 0));
+    fctx.fillStyle = grd;
+    fctx.beginPath(); fctx.arc(node.x, node.y, cr * 4, 0, Math.PI * 2); fctx.fill();
+    fctx.fillStyle = rgba(FLOW.hot, 0.8);
+    fctx.beginPath(); fctx.arc(node.x, node.y, Math.max(2, cr * 0.45), 0, Math.PI * 2); fctx.fill();
+  }
+
+  function drawBlips(dt) {
+    for (let i = blips.length - 1; i >= 0; i--) {  // flashes where flow lands on the line
+      const b = blips[i];
+      b.a -= dt / 0.7;
+      if (b.a <= 0) { blips.splice(i, 1); continue; }
+      const h = 34;
+      const g = fctx.createLinearGradient(0, b.y - h, 0, b.y + h);
+      g.addColorStop(0,   rgba(FLOW.hot, 0));
+      g.addColorStop(0.5, rgba(FLOW.hot, b.a));
+      g.addColorStop(1,   rgba(FLOW.hot, 0));
+      fctx.strokeStyle = g; fctx.lineWidth = 3;
+      fctx.beginPath(); fctx.moveTo(line.x, b.y - h); fctx.lineTo(line.x, b.y + h); fctx.stroke();
+    }
+  }
+
+  let tPrev = performance.now(), accIn = 0, accOut = 0;
+  function frame(now) {
+    const dt = Math.min(0.05, (now - tPrev) / 1000); tPrev = now;
+    // pause the flow render once the hero has scrolled away (it's invisible anyway)
+    if (window.scrollY > window.innerHeight * 1.4) { requestAnimationFrame(frame); return; }
+    fctx.clearRect(0, 0, W, H);
+    aRect = asciiEl ? asciiEl.getBoundingClientRect() : null;
+
+    node.beatAcc += dt;
+    if (node.beatAcc >= FLOW.node.beat) {          // the "beep"
+      node.beatAcc -= FLOW.node.beat;
+      rings.push({ r: FLOW.node.coreR, a: 1 });
+      node.flash = 0.55;                           // subtle ping, not a hard flash
+      spawn('out');                                // extra pulse of output on the beat
+    }
+    node.flash = Math.max(0, node.flash - dt / 0.5);
+
+    const C = window.__collapse || 0;                 // scroll-collapse progress 0..1
+    const emitIn = FLOW.emitIn * (1 - 0.85 * C);       // pour glyphs in as it collapses
+    const maxP = FLOW.maxParticles + (C * 170 | 0);
+    accIn += dt;
+    if (accIn >= emitIn && particles.length < maxP) { accIn = 0; spawn('in'); if (C > 0.3) spawn('in'); }
+    accOut += dt;
+    if (accOut >= FLOW.emitOut && particles.length < maxP) { accOut = 0; spawn('out'); }
+
+    fctx.globalCompositeOperation = 'source-over';
+    drawConduits(IN); drawConduits(OUT); drawLineBase();
+
+    fctx.globalCompositeOperation = 'lighter';     // additive glow on black
+    fctx.font = `${FLOW.glyphSize}px "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace`;
+    fctx.textAlign = 'center'; fctx.textBaseline = 'middle';
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.t += dt * p.speed;
+      if (p.t >= 1) {
+        if (p.dir === 'in') node.flash = Math.min(0.7, node.flash + 0.12);  // arrivals gently feed the beep
+        else blips.push({ y: p.endY, a: 1 });
+        particles.splice(i, 1);
+        continue;
+      }
+      drawParticle(p);
+    }
+    drawNode(dt);
+    drawBlips(dt);
+    fctx.globalCompositeOperation = 'source-over';
+
+    requestAnimationFrame(frame);
+  }
+
+  window.addEventListener('resize', size);
+  size();
+  requestAnimationFrame(frame);
+})();
+</script>
+
+<script>
+/* ============================================================
+   Scroll-collapse controller
+   As the user scrolls the first viewport, the hero text and the
+   ASCII portrait drift toward the central "beeping" node, shrink,
+   and fade — collapsing into it. The node holds, then the About
+   section rises up beneath. Purely scroll-driven (no libraries).
+   ============================================================ */
+(function () {
+  const heroText = document.getElementById('heroText');
+  const stage    = document.getElementById('portraitStage');
+  const flow     = document.getElementById('flow');
+  const h1       = heroText.querySelector('.hero-h1');
+  const blocks   = [heroText.querySelector('.eyebrow'),
+                    heroText.querySelector('.hero-sub'),
+                    heroText.querySelector('.btn-row')].filter(Boolean);
+
+  const clamp  = (v, a, b) => Math.max(a, Math.min(b, v));
+  const smooth = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
+  const rand   = (a, b) => a + Math.random() * (b - a);
+
+  // --- split the headline into per-character spans (the disintegration units) ---
+  const glyphs = [];
+  (function split(node, accent) {
+    [...node.childNodes].forEach((k) => {
+      if (k.nodeType === 3) {                       // text node -> one span per char
+        const frag = document.createDocumentFragment();
+        for (const ch of k.textContent) {
+          if (ch === ' ') { frag.appendChild(document.createTextNode(' ')); continue; }
+          const s = document.createElement('span');
+          s.className = 'glyph' + (accent ? ' accent' : '');
+          s.textContent = ch;
+          s._order = Math.random();                 // stagger order
+          s._sx = rand(-1, 1); s._sy = rand(-1.4, -0.2);   // scatter (bias upward)
+          s._rot = rand(-1, 1);
+          frag.appendChild(s); glyphs.push(s);
+        }
+        node.replaceChild(frag, k);
+      } else if (k.nodeType === 1 && k.nodeName !== 'BR') {
+        split(k, accent || (k.classList && k.classList.contains('accent')));
+      }
+    });
+  })(h1, false);
+
+  let base = null;
+  function measure() {
+    glyphs.forEach((g) => { g.style.transform = ''; g.style.opacity = ''; });
+    blocks.forEach((b) => { b.style.transform = ''; b.style.opacity = ''; b.style.filter = ''; });
+    stage.style.transform = '';
+    const nodeX = 0.46 * innerWidth, nodeY = 0.50 * innerHeight;   // matches FLOW.node
+    glyphs.forEach((g) => { const r = g.getBoundingClientRect(); g._cx = r.left + r.width / 2; g._cy = r.top + r.height / 2; });
+    blocks.forEach((b) => { const r = b.getBoundingClientRect(); b._cx = r.left + r.width / 2; b._cy = r.top + r.height / 2; });
+    const s = stage.getBoundingClientRect();
+    base = { nodeX, nodeY, stx: s.left + s.width / 2, sty: s.top + s.height / 2 };
+    apply();
+  }
+
+  function apply() {
+    if (!base) return;
+    const p = clamp(scrollY / (innerHeight * 0.9), 0, 1);
+    window.__collapse = p;                           // the flow layer reads this
+
+    // ---- headline: characters are SUCKED into the orb (converge + spiral + shrink) ----
+    for (const g of glyphs) {
+      const start = g._order * 0.22;                 // tight stagger; the letters go first
+      const raw = clamp((p - start) / 0.42, 0, 1);
+      const e = raw * raw * (3 - 2 * raw);
+      const acc = Math.pow(e, 1.5);                  // accelerate inward — a suction feel
+      const dx = base.nodeX - g._cx, dy = base.nodeY - g._cy;
+      const len = Math.hypot(dx, dy) || 1;
+      const px = -dy / len, py = dx / len;           // tangent → a little spiral as it draws in
+      const swirl = g._rot * 46 * Math.sin(e * Math.PI) * (1 - e);
+      g.style.transform = `translate(${dx * acc + px * swirl}px, ${dy * acc + py * swirl}px) rotate(${g._rot * 26 * e}deg) scale(${1 - 0.92 * e})`;
+      g.style.opacity = String(1 - smooth(0.55, 1.0, e));
+    }
+    // ---- supporting text: drawn in with the letters ----
+    blocks.forEach((b, k) => {
+      const raw = clamp((p - k * 0.04) / 0.4, 0, 1);
+      const e = raw * raw * (3 - 2 * raw);
+      const acc = Math.pow(e, 1.4);
+      const dx = base.nodeX - b._cx, dy = base.nodeY - b._cy;
+      b.style.transform = `translate(${dx * acc}px, ${dy * acc}px) scale(${1 - 0.85 * e})`;
+      b.style.opacity = String(1 - smooth(0.35, 0.9, e));
+      b.style.filter = `blur(${e * 3}px)`;
+    });
+    // ---- portrait: the ASCII canvas now disintegrates glyph-by-glyph toward
+    // the orb (see the portrait draw loop, driven by window.__collapse), so the
+    // stage itself is no longer moved or faded as one block. ----
+    stage.style.transform = '';
+    stage.style.opacity = '';
+    // the orb holds while it absorbs the hero, then recedes BEFORE the About
+    // section rises into the center — otherwise it shows through the transparent
+    // section and floats over the text (the janky overlap we're fixing).
+    flow.style.opacity = String(1 - smooth(0.48, 0.76, p));
+
+    const pe = p > 0.55 ? 'none' : '';
+    heroText.style.pointerEvents = pe;
+    stage.style.pointerEvents = pe;
+  }
+
+  addEventListener('scroll', apply, { passive: true });
+  addEventListener('resize', measure);
+  addEventListener('load', measure);
+  measure();
+  setTimeout(measure, 450);   // re-measure once fonts settle
+
+  // --- scroll-reveal entrances (lamalama-style section beats) ---
+  const targets = document.querySelectorAll('.section-title, .section > .kicker, .stat-card, .cards .card, .fun-grid > *, .cta-inner > *, .contact-head, .form-card, .footer-brand, .footer-col');
+  targets.forEach((t) => t.classList.add('reveal'));
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((en) => { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
+  }, { threshold: 0.14, rootMargin: '0px 0px -6% 0px' });
+  targets.forEach((t) => io.observe(t));
+
+  // --- smooth momentum scroll (Lenis) for the lamalama feel; graceful fallback ---
+  if (window.Lenis && !location.search.includes('nolenis')) {
+    const lenis = new Lenis({ lerp: 0.09, smoothWheel: true });
+    window.__lenis = lenis;
+    (function raf(t) { lenis.raf(t); requestAnimationFrame(raf); })();
+    document.querySelectorAll('a[href^="#"]').forEach((a) => {
+      a.addEventListener('click', (ev) => {
+        const id = a.getAttribute('href'); if (id.length < 2) return;
+        const el = document.querySelector(id); if (!el) return;
+        ev.preventDefault(); lenis.scrollTo(el, { offset: -80 });
+      });
+    });
+  }
+
+  // --- scroll-linked word fill: body copy under a title starts dim and lights
+  // up word-by-word from start to finish as the reader scrolls it into view ---
+  (function () {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const fills = [...document.querySelectorAll('.about-text p, .fun-sub')];
+    if (!fills.length) return;
+    fills.forEach((el) => {
+      el.classList.add('sfill');
+      const words = [];
+      (function wrap(node) {
+        [...node.childNodes].forEach((n) => {
+          if (n.nodeType === 3) {                       // text node -> wrap each word
+            const parts = n.textContent.split(/(\s+)/);
+            const frag = document.createDocumentFragment();
+            parts.forEach((part) => {
+              if (part === '') return;
+              if (/^\s+$/.test(part)) { frag.appendChild(document.createTextNode(part)); return; }
+              const s = document.createElement('span'); s.className = 'w'; s.textContent = part;
+              frag.appendChild(s); words.push(s);
+            });
+            node.replaceChild(frag, n);
+          } else if (n.nodeType === 1) { wrap(n); }      // recurse into <em> etc.
+        });
+      })(el);
+      el._words = words; el._lit = 0;
+    });
+    let ticking = false;
+    function update() {
+      ticking = false;
+      // Complete the fill as the paragraph reaches the upper-middle of the
+      // viewport — so by the time the section is settled in view, it's fully
+      // white. Progress tracks the paragraph's TOP (not its height), so long
+      // paragraphs finish just as quickly as short ones.
+      const vh = innerHeight, startY = vh * 1.0, endY = vh * 0.68;
+      for (const el of fills) {
+        const r = el.getBoundingClientRect();
+        if (r.bottom < -40 || r.top > vh + 40) continue;         // skip offscreen
+        const p = Math.max(0, Math.min(1, (startY - r.top) / (startY - endY)));
+        const lit = Math.round(p * el._words.length);
+        if (lit === el._lit) continue;
+        const w = el._words, lo = Math.min(el._lit, lit), hi = Math.max(el._lit, lit);
+        for (let i = lo; i < hi; i++) if (w[i]) w[i].classList.toggle('on', i < lit);
+        el._lit = lit;
+      }
+    }
+    function onScroll() { if (!ticking) { ticking = true; requestAnimationFrame(update); } }
+    addEventListener('scroll', onScroll, { passive: true });
+    addEventListener('resize', onScroll);
+    addEventListener('load', update);
+    update();
+  })();
+
+  // Contact form -> FormSubmit (AJAX, so the visitor stays on the page).
+  const form = document.getElementById('applyForm');
+  if (form) form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const note = form.querySelector('.form-note');
+    const btn  = form.querySelector('button[type=submit]');
+    if (form.querySelector('[name=_honey]').value) return;   // bot trap
+    const original = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+    if (note) note.style.color = '#cfcfd2';
+    try {
+      const res = await fetch('https://formsubmit.co/ajax/maverick.eth.11@gmail.com', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(Object.fromEntries(new FormData(form)))
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && (data.success === 'true' || data.success === true || res.status === 200)) {
+        form.reset();
+        if (note) note.textContent = "Thanks — your message is on its way. I'll get back to you soon.";
+      } else { throw new Error('bad response'); }
+    } catch (err) {
+      if (note) { note.textContent = "Couldn't send just now — email me directly at maverick.eth.11@gmail.com."; note.style.color = '#e6a5a5'; }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = original; }
+    }
+  });
+})();
+</script>
+
+<script>
+/* ============================================================
+   Nav: cycling center label (pixel/ASCII scramble) + menu toggle
+   ============================================================ */
+(function () {
+  const rot = document.getElementById('navRotator');
+  const rotText = rot ? rot.querySelector('.rot-text') : null;
+  const nav = document.querySelector('.nav');
+  const menuBtn = document.getElementById('navMenuBtn');
+  const items = [
+    { t: 'ABOUT ME',     href: '#about' },
+    { t: 'WHAT I DO',    href: '#services' },
+    { t: 'JUST FOR FUN', href: '#fun' },
+    { t: 'CONTACT ME',   href: '#contact' },
+  ];
+  const SC = '#%@&$*+=/\\|<>xX0';
+  let idx = 0;
+
+  function scramble(el, target) {
+    cancelAnimationFrame(el._raf); clearTimeout(el._to);
+    const dur = 420, t0 = performance.now();       // time-based: resolves in ~0.42s at any fps
+    el._to = setTimeout(() => { cancelAnimationFrame(el._raf); el.textContent = target; }, dur + 60);
+    (function step() {
+      const p = Math.min(1, (performance.now() - t0) / dur);
+      let out = '';
+      for (let i = 0; i < target.length; i++) {
+        const ch = target[i];
+        if (ch === ' ') { out += ' '; continue; }
+        const revealAt = (i / target.length) * 0.55 + 0.35;   // left-to-right decode
+        out += (p >= revealAt) ? ch : SC[(Math.random() * SC.length) | 0];
+      }
+      el.textContent = out;
+      if (p < 1) el._raf = requestAnimationFrame(step); else { clearTimeout(el._to); el.textContent = target; }
+    })();
+  }
+  function show(i) { idx = i; if (rot) rot.dataset.href = items[i].href; if (rotText) scramble(rotText, items[i].t); }
+
+  if (rot && rotText) {
+    show(0);
+    setInterval(() => show((idx + 1) % items.length), 2800);
+    rot.addEventListener('click', () => {
+      const el = document.querySelector(rot.dataset.href);
+      if (!el) return;
+      if (window.__lenis) window.__lenis.scrollTo(el, { offset: -80 });
+      else el.scrollIntoView({ behavior: 'smooth' });
+    });
+  }
+  const backdrop = document.getElementById('navBackdrop');
+  function setOpen(o) { nav.classList.toggle('open', o); if (backdrop) backdrop.classList.toggle('active', o); }
+  if (nav && menuBtn) {
+    menuBtn.addEventListener('click', (e) => { e.stopPropagation(); setOpen(!nav.classList.contains('open')); });
+    document.addEventListener('click', (e) => { if (!nav.contains(e.target)) setOpen(false); });
+    if (backdrop) backdrop.addEventListener('click', () => setOpen(false));
+    nav.querySelectorAll('.nav-menu a').forEach((a) => a.addEventListener('click', () => setOpen(false)));
+  }
+})();
+</script>
+
+<script>
+/* ============================================================
+   Stat-card background FX
+   A dot-halftone field that morphs between an animated gradient
+   and a "water contour" map. During the morph the dots vibrate,
+   then settle into the next pattern. Monochrome, on-theme.
+   ============================================================ */
+(function () {
+  document.querySelectorAll('.card-fx').forEach(init);
+  function init(cv) {
+    const ctx = cv.getContext('2d');
+    const host = cv.parentElement;
+    const GRID = 8;
+    let W = 0, H = 0, cols = 0, rows = 0, visible = true;
+
+    function size() {
+      const r = host.getBoundingClientRect();
+      if (!r.width) return;
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      W = r.width; H = r.height;
+      cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      cols = Math.ceil(W / GRID) + 1; rows = Math.ceil(H / GRID) + 1;
+    }
+    new ResizeObserver(size).observe(host); size();
+    new IntersectionObserver((es) => { visible = es[0].isIntersecting; }, { threshold: 0 }).observe(host);
+
+    let mode = 0, blend = 0, transitioning = false;
+    let holdT = Math.random() * 3.5, angle = 0.4 + Math.random() * 2.6;   // desync each card
+    const t0 = performance.now(); let last = t0;
+    const diag = () => Math.hypot(W, H) || 1;
+
+    // smooth animated diagonal gradient (dots brighter toward one corner)
+    function fGrad(x, y, t) {
+      const v = ((Math.cos(angle) * x + Math.sin(angle) * y) / diag()) * 0.5 + 0.5 + 0.15 * Math.sin(t * 0.4);
+      return v < 0 ? 0 : v > 1 ? 1 : v;
+    }
+    // dotted topographic contour lines from a sum-of-sines field
+    function fCont(x, y, t) {
+      let g = Math.sin(x * 0.018 + t * 0.6) + Math.sin(y * 0.021 - t * 0.4)
+            + Math.sin((x + y) * 0.014 + t * 0.3) + Math.sin((x - y) * 0.016 - t * 0.5);
+      g /= 4;
+      const f = (g * 0.5 + 0.5) * 5;               // 5 iso-lines
+      const d = Math.abs(f - Math.round(f));
+      return 1 - Math.min(1, d * 2.4);             // peak on the lines
+    }
+
+    function frame(now) {
+      requestAnimationFrame(frame);
+      if (!visible) return;                        // skip the draw when off-screen
+      if (now - last < 32) return;                 // throttle to ~30fps
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      const t = (now - t0) / 1000;
+      angle += 0.0009; holdT += dt;
+      if (!transitioning && holdT > 4.2) transitioning = true;
+      if (transitioning) { blend += dt * 0.7; if (blend >= 1) { blend = 0; transitioning = false; holdT = 0; mode = 1 - mode; } }
+      const vib = transitioning ? Math.sin(blend * Math.PI) : 0;   // vibration envelope
+
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = '#ece9e6';
+      for (let gy = 0; gy < rows; gy++) {
+        for (let gx = 0; gx < cols; gx++) {
+          let x = gx * GRID, y = gy * GRID;
+          if (vib > 0) {                            // jitter, peaks mid-transition
+            const j = vib * 3.4;
+            x += Math.sin(gx * 12.9 + gy * 4.7 + t * 38) * j;
+            y += Math.cos(gx * 7.3 + gy * 9.1 + t * 35) * j;
+          }
+          const fa = mode === 0 ? fGrad(x, y, t) : fCont(x, y, t);
+          let v = fa;
+          if (blend > 0) { const fb = mode === 0 ? fCont(x, y, t) : fGrad(x, y, t); v = fa * (1 - blend) + fb * blend; }
+          v = v < 0 ? 0 : v > 1 ? 1 : v;
+          ctx.globalAlpha = 0.04 + v * 0.42;
+          const s = 0.6 + v * 1.7;
+          ctx.fillRect(x, y, s, s);
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+    requestAnimationFrame(frame);
+  }
+})();
+</script>
+
+<script>
+/* ============================================================
+   Cartographic contour lines (light zone backgrounds)
+   Static topographic iso-lines via marching squares over a
+   smooth sum-of-sines field. Thin dark lines on the light bg.
+   ============================================================ */
+(function () {
+  document.querySelectorAll('.contour-fx').forEach(init);
+  function init(cv) {
+    if (!cv.closest('.light-zone')) return;   // contour detail belongs to light zones only
+    const ctx = cv.getContext('2d');
+    const host = cv.parentElement;
+    const seed = Math.random() * 1000;
+    function draw() {
+      const r = host.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const W = r.width, H = r.height;
+      cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      const cell = 15;
+      const cols = Math.ceil(W / cell) + 1, rows = Math.ceil(H / cell) + 1;
+      const fld = (x, y) => Math.sin(x * 0.006 + seed) + Math.sin(y * 0.008 - seed * 0.7)
+                          + Math.sin((x + y) * 0.005 + seed * 0.5) * 0.8 + Math.sin((x - y) * 0.007 + seed) * 0.7;
+      const g = [];
+      for (let j = 0; j < rows; j++) { g[j] = []; for (let i = 0; i < cols; i++) g[j][i] = fld(i * cell, j * cell); }
+      ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(20,20,22,0.13)';
+      const levels = [-2.4, -1.8, -1.2, -0.6, 0, 0.6, 1.2, 1.8, 2.4];
+      for (const L of levels) {
+        ctx.beginPath();
+        for (let j = 0; j < rows - 1; j++) for (let i = 0; i < cols - 1; i++) {
+          const x0 = i * cell, y0 = j * cell, x1 = x0 + cell, y1 = y0 + cell;
+          const a = g[j][i], b = g[j][i + 1], c = g[j + 1][i + 1], d = g[j + 1][i];
+          let idx = 0; if (a > L) idx |= 8; if (b > L) idx |= 4; if (c > L) idx |= 2; if (d > L) idx |= 1;
+          if (idx === 0 || idx === 15) continue;
+          const it = (va, vb) => (L - va) / (vb - va);
+          const top = [x0 + cell * it(a, b), y0], right = [x1, y0 + cell * it(b, c)];
+          const bottom = [x0 + cell * it(d, c), y1], left = [x0, y0 + cell * it(a, d)];
+          const S = (p, q) => { ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); };
+          switch (idx) {
+            case 1: case 14: S(left, bottom); break;
+            case 2: case 13: S(bottom, right); break;
+            case 3: case 12: S(left, right); break;
+            case 4: case 11: S(top, right); break;
+            case 5: S(left, top); S(bottom, right); break;
+            case 6: case 9: S(top, bottom); break;
+            case 7: case 8: S(left, top); break;
+            case 10: S(top, right); S(left, bottom); break;
+          }
+        }
+        ctx.stroke();
+      }
+    }
+    new ResizeObserver(draw).observe(host);
+    draw();
+  }
+})();
+</script>
+
+<script>
+/* ============================================================
+   Halftone cursor trail (lamalama-style)
+   A fixed grid of tiny cream dots. The cursor's recent path
+   lights up nearby dots (proximity + recency falloff) and they
+   fade behind it — a dotted comet trail. Non-interactive.
+   ============================================================ */
+(function () {
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const cv = document.getElementById('cursor');
+  if (!cv) return;
+  const cx = cv.getContext('2d');
+
+  const GRID = 10;      // dot spacing (px)
+  const R = 88;         // reveal radius around each trail point
+  const PERSIST = 0.9;  // seconds a trail point lingers
+  const SPACING = 6;    // min px between recorded points
+  const CREAM = 'rgb(236,233,230)';   // dots over dark sections
+  const INK   = 'rgb(26,24,22)';      // dots over the light (cartographic) zones
+
+  let W = 0, H = 0;
+  const trail = [];
+  let lastX = -1, lastY = -1;
+  let darkDots = false;               // true while the cursor is over a .light-zone
+
+  function size() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  addEventListener('resize', size); size();
+
+  addEventListener('pointermove', (e) => {
+    if (e.pointerType && e.pointerType !== 'mouse') return;   // skip touch
+    const x = e.clientX, y = e.clientY;
+    if (lastX < 0 || Math.hypot(x - lastX, y - lastY) >= SPACING) {
+      trail.push({ x, y, born: performance.now() });
+      lastX = x; lastY = y;
+      if (trail.length > 26) trail.shift();
+      // #cursor is pointer-events:none, so elementFromPoint returns the content
+      // beneath it — flip to dark dots whenever that content is in a light zone
+      const under = document.elementFromPoint(x, y);
+      darkDots = !!(under && under.closest('.light-zone'));
+    }
+  });
+
+  const smooth = (t) => t * t * (3 - 2 * t);
+
+  function frame() {
+    cx.clearRect(0, 0, W, H);
+    const now = performance.now(), persistMs = PERSIST * 1000;
+    while (trail.length && now - trail[0].born > persistMs) trail.shift();
+
+    if (trail.length) {
+      let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+      const pts = [];
+      for (const p of trail) {
+        const s = 1 - (now - p.born) / persistMs;      // recency 1..0
+        pts.push(p.x, p.y, s);
+        if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+      }
+      minX -= R; minY -= R; maxX += R; maxY += R;
+      const gx0 = Math.floor(minX / GRID) * GRID, gy0 = Math.floor(minY / GRID) * GRID;
+      const R2 = R * R;
+      cx.fillStyle = darkDots ? INK : CREAM;
+      for (let gy = gy0; gy <= maxY; gy += GRID) {
+        for (let gx = gx0; gx <= maxX; gx += GRID) {
+          let inf = 0;
+          for (let i = 0; i < pts.length; i += 3) {
+            const dx = gx - pts[i], dy = gy - pts[i + 1];
+            const d2 = dx * dx + dy * dy;
+            if (d2 < R2) {
+              const t = 1 - Math.sqrt(d2) / R;
+              const c = pts[i + 2] * smooth(t);
+              if (c > inf) inf = c;
+            }
+          }
+          if (inf > 0.05) {
+            cx.globalAlpha = Math.min(1, inf);
+            const s = 1.5 * (0.6 + 0.8 * inf);
+            cx.fillRect(gx - s / 2, gy - s / 2, s, s);
+          }
+        }
+      }
+      cx.globalAlpha = 1;
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
