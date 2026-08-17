@@ -240,7 +240,10 @@
   .cta-actions { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
 
   /* ---- Contact ---- */
-  .contact { max-width: 720px; }
+  /* z-index:4 lifts this section above the fixed hero portrait + flow canvases
+     (both z-index:1) — like .sections / .cta-band / footer already do. Without it
+     the frozen ASCII frame bled over the form's right side (the "shadow"). */
+  .contact { max-width: 720px; position: relative; z-index: 4; }
   .contact-head { text-align: center; margin-bottom: 44px; }
   .contact-head .kicker { margin-bottom: 18px; }
   .contact-head h2 { font-family: var(--display); font-weight: 700; font-size: clamp(1.8rem, 3vw, 2.6rem); margin-bottom: 12px; }
