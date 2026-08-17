@@ -231,37 +231,6 @@
   .card h3 { font-family: var(--display); font-weight: 800; font-size: 1.6rem; color: #fff; margin-bottom: 14px; transition: text-shadow .25s; }
   .card p { color: #d7d5d2; font-size: 15.5px; line-height: 1.68; }
 
-  /* ---- Brands ---- */
-  .brands { text-align: center; }
-  .brands .kicker { margin-bottom: 20px; }
-  .brands .section-title { margin-bottom: 12px; }
-  .brands-sub { color: var(--muted); margin: 0 auto 48px; max-width: 48ch; line-height: 1.6; }
-  .brand-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-  .brand-chip {
-    display: flex; align-items: center; justify-content: center; gap: 10px;
-    padding: 26px 18px; border-radius: 14px;
-    border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.02);
-    color: #cbcbcf; font-family: var(--display); font-weight: 700; letter-spacing: .04em; font-size: 1rem;
-    transition: border-color .2s, background .2s, color .2s;
-  }
-  .brand-chip:hover { border-color: var(--line); background: rgba(255,255,255,.05); color: #fff; }
-
-  /* ---- Work ---- */
-  .work-head { margin-bottom: 56px; }
-  .work-head .kicker { margin-bottom: 20px; }
-  .work-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
-  .work-card {
-    border: 1px solid rgba(255,255,255,.08); border-radius: 18px; overflow: hidden;
-    background: rgba(255,255,255,.02); transition: transform .25s, border-color .25s;
-  }
-  .work-card:hover { transform: translateY(-4px); border-color: var(--line); }
-  .work-thumb { height: 176px; background: linear-gradient(145deg, #1b1b1e, #0d0d0f); position: relative; }
-  .work-thumb::after { content: attr(data-tag); position: absolute; left: 16px; top: 14px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--cream); background: rgba(0,0,0,.35); padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); }
-  .work-body { padding: 22px 22px 26px; }
-  .work-body h3 { font-family: var(--display); font-weight: 700; font-size: 1.15rem; margin-bottom: 10px; }
-  .work-body p { color: var(--muted); font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
-  .work-metric { color: #d7d7da; font-weight: 600; font-size: 14px; }
-
   /* ---- invite band ---- */
   .cta-band { position: relative; z-index: 4; background: linear-gradient(180deg, #141416 0%, #0b0b0d 100%); padding: 130px 24px; text-align: center; overflow: hidden; border-top: 1px solid rgba(255,255,255,.06); border-bottom: 1px solid rgba(255,255,255,.06); }
   .cta-band::before { content:""; position:absolute; inset:0; background: radial-gradient(50vw 40vh at 50% 0%, rgba(255,255,255,.06), transparent 65%); pointer-events:none; }
@@ -276,11 +245,17 @@
   .contact-head .kicker { margin-bottom: 18px; }
   .contact-head h2 { font-family: var(--display); font-weight: 700; font-size: clamp(1.8rem, 3vw, 2.6rem); margin-bottom: 12px; }
   .contact-head p { color: var(--muted); }
-  .form-card { background: rgba(18,18,20,.6); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 40px; backdrop-filter: blur(6px); }
-  .form-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; }
-  .field { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
-  .field.full { grid-column: 1 / -1; }
-  .field input, .field textarea { width: 100%; min-width: 0; }
+  /* Solid card, NO backdrop-filter and NO scroll-driven transform: the
+     blur+transform combo caused intermittent GPU compositing artifacts
+     (phantom seams / "clipping") during scroll. Kept dead simple on purpose. */
+  .form-card { background: #131316; border: 1px solid rgba(255,255,255,.09); border-radius: 12px; padding: 40px; max-width: 100%; }
+  /* flex-wrap (not grid): the two half-width fields shrink, then WRAP to stack
+     if space is ever tight — they can never overflow/clip the card, in any font
+     or viewport state. This is the "form can't break" guarantee. */
+  .form-grid { display: flex; flex-wrap: wrap; gap: 22px; }
+  .field { display: flex; flex-direction: column; gap: 9px; flex: 1 1 240px; min-width: 0; }
+  .field.full { flex-basis: 100%; }
+  .field input, .field textarea { width: 100%; min-width: 0; box-sizing: border-box; }
   .field label { font-size: 13.5px; font-weight: 600; color: #e2e0dd; }
   .field label .opt { color: var(--muted); font-weight: 400; }
   .field input, .field textarea {
@@ -322,10 +297,12 @@
   .reveal { opacity: 0; transform: translateY(28px); transition: opacity .8s cubic-bezier(.4,0,.2,1), transform .8s cubic-bezier(.4,0,.2,1); }
   .reveal.in { opacity: 1; transform: none; }
   /* service cards slide in from the sides and settle side-by-side */
-  .cards .card.reveal { transform: translateX(-170px) scale(.96); opacity: 0; }
+  /* ignore the cursor while a card is still sliding in — otherwise a hover
+     mid-flight hijacks the transform and freezes the animation */
+  .cards .card.reveal { transform: translateX(-170px) scale(.96); opacity: 0; pointer-events: none; }
+  .cards .card.reveal.settled { pointer-events: auto; }
   .cards .card:nth-child(even).reveal { transform: translateX(170px) scale(.96); }
   .cards .card.reveal.in { transform: none; opacity: 1; }
-  .cards .card.reveal.in:hover { transform: translateY(-4px); }
   .cards .card:nth-child(2), .fun-grid > *:nth-child(2) { transition-delay: .08s; }
   .cards .card:nth-child(3), .fun-grid > *:nth-child(3) { transition-delay: .16s; }
   .cards .card:nth-child(4) { transition-delay: .08s; }
@@ -334,11 +311,7 @@
   /* About: heading + copy settle in flat (small lift, staggered like a paragraph
      being laid down); the stat card glides in from the right into place. */
   .about { overflow: clip; }   /* contain the stat card's slide, no h-scroll */
-  .about-text .reveal { transform: translateY(12px); }
   .about-text .section-title.reveal { transform: translateY(16px); }
-  .about-text p.reveal:nth-of-type(1) { transition-delay: .08s; }
-  .about-text p.reveal:nth-of-type(2) { transition-delay: .16s; }
-  .about-text p.reveal:nth-of-type(3) { transition-delay: .24s; }
   .stat-card.reveal { transform: translateX(130px) scale(.98); opacity: 0; transition-duration: .9s; transition-delay: .12s; }
   .stat-card.reveal.in { transform: none; opacity: 1; }
   /* scroll-linked word fill: body copy under a title starts dim and lights up
@@ -390,12 +363,69 @@
 
   /* ============================ responsive (shell-level) ============================ */
   @media (max-width: 992px) {
-    .nav-links { display: none; }
     .about { grid-template-columns: 1fr; gap: 36px; }
-    .cards, .fun-grid, .form-grid, .footer-inner { grid-template-columns: 1fr; }
-    .brand-grid { grid-template-columns: 1fr 1fr; }
+    .cards, .fun-grid, .footer-inner { grid-template-columns: 1fr; }
     .hero-text { width: 88vw; }
     .portrait-stage { opacity: .5; }
+  }
+
+  /* mobile-only hero intro bits — hidden on desktop */
+  .m-welcome, .m-scroll { display: none; }
+
+  /* ============================ MOBILE hero (phones) ============================
+     Intro: beeping orb + "Welcome" -> explodes into the centered ASCII portrait,
+     nav on top, a scroll arrow below. No hero text until the user scrolls, then
+     the heading + description fade UP over the portrait. */
+  @media (max-width: 700px) {
+    .portrait-stage {
+      left: 0; right: 0; width: 100vw; justify-content: center; opacity: 1;
+      transition: opacity .55s ease, transform .85s cubic-bezier(.16,.8,.3,1);
+    }
+    #ascii { -webkit-mask-image: none; mask-image: none; }   /* centered: drop the left-edge fade */
+
+    /* extra scroll room so the ASCII hero + text sequence plays out before the
+       About section rises up and covers it */
+    .hero-spacer { height: 185vh; }
+    /* hero text: hidden until scroll, centered, over the lower portrait. Kept at
+       the hero z-index (below .sections) so About cleanly covers it on arrival. */
+    .hero-text {
+      width: 90vw; left: 50%; transform: translateX(-50%); height: 100vh;
+      align-items: center; text-align: center; justify-content: flex-end;
+      gap: 16px; padding: 0 0 15vh; opacity: 0; z-index: 3;
+    }
+    .hero-text .eyebrow { align-self: center; }
+    .hero-h1 { white-space: normal; font-size: clamp(2.6rem, 13vw, 3.8rem); }
+    .hero-sub { font-size: 1rem; max-width: 34ch; }
+    .btn-row { justify-content: center; }
+
+    /* --- intro (pre-explode): hide the ASCII, show the orb + Welcome --- */
+    body.m-intro .portrait-stage { opacity: 0; transform: scale(.35); }
+    .m-welcome {
+      display: block; position: fixed; left: 0; right: 0; top: 57%; text-align: center;
+      z-index: 47; font-family: var(--mono); text-transform: uppercase; letter-spacing: .34em;
+      font-size: 12px; color: var(--cream); opacity: 0; transition: opacity .5s ease; pointer-events: none;
+    }
+    body.m-intro .m-welcome { opacity: .85; }
+
+    /* --- scroll hint: appears after the explode, fades once the user scrolls --- */
+    .m-scroll {
+      display: block; position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+      z-index: 47; width: 40px; height: 40px; opacity: 0; transition: opacity .5s ease;
+    }
+    body.m-ready .m-scroll { opacity: .85; }
+    body.m-scrolled .m-scroll { opacity: 0; pointer-events: none; }
+    /* the flow streams/divider fan toward the (absent) left text — keep the orb
+       but fade the rest once the portrait is centered on screen */
+    body.m-ready #flow { opacity: .4; transition: opacity 1s ease; }
+    .m-arrow {
+      display: block; width: 13px; height: 13px; margin: 8px auto 0;
+      border-right: 2px solid var(--cream); border-bottom: 2px solid var(--cream);
+      transform: rotate(45deg); animation: m-bounce 1.5s ease-in-out infinite;
+    }
+    @keyframes m-bounce {
+      0%,100% { transform: rotate(45deg) translate(-2px,-2px); opacity: .5; }
+      50%     { transform: rotate(45deg) translate(2px,2px);   opacity: 1; }
+    }
   }
 </style>
 </head>
@@ -432,7 +462,7 @@
   <div class="hero-text" id="heroText">
     <span class="eyebrow">Growth · Marketing · Web3 · AI</span>
     <h1 class="hero-h1">Hi, I'm<br /><span class="accent">Maverick</span></h1>
-    <p class="hero-sub">I've spent the last few years helping projects and communities grow — mostly in crypto, lately in AI. I care about the craft of it: the strategy, the people, and the stories that make things spread.</p>
+    <p class="hero-sub">I've spent the last few years helping projects and communities grow, mostly in crypto and gaming, lately in AI. I care about the craft of it: the strategy, the people, and the stories that make things spread.</p>
     <div class="btn-row">
       <a href="#about" class="btn btn-primary">More About Me →</a>
       <a href="#contact" class="btn btn-ghost">Contact me</a>
@@ -447,6 +477,10 @@
   <!-- halftone cursor-trail overlay -->
   <canvas id="cursor"></canvas>
 
+  <!-- mobile-only hero intro bits (hidden on desktop) -->
+  <div class="m-welcome" aria-hidden="true">Welcome</div>
+  <a class="m-scroll" href="#about" aria-label="Scroll down"><span class="m-arrow"></span></a>
+
   <div class="hero-spacer"></div>
 
   <!-- ============================ SECTIONS ============================ -->
@@ -457,9 +491,9 @@
       <div class="about-text">
         <span class="kicker">About</span>
         <h2 class="section-title lg">A Bit About Me</h2>
-        <p>I'm Maverick. For the last few years I've worked at the intersection of growth, marketing, and community — mostly in crypto, and more recently in AI.</p>
+        <p>For the last few years I've worked at the intersection of growth, marketing, and community.</p>
         <p>I'm less interested in hype and more in the craft: how ideas find the right people, how communities actually stick around, and how a good story turns attention into something real. I've advised founders, helped teams find their footing, and grown communities from a cold start.</p>
-        <p>When I'm not doing that, I'm usually deep in some new rabbit hole — a protocol, a tool, a market I want to understand. Curiosity is basically the job. <em>(Placeholder — send me the real details and I'll make this genuinely you.)</em></p>
+        <p>When I'm not doing that, I'm usually deep in some new rabbit hole, a protocol, a tool, a market I want to understand. Curiosity is basically the job.</p>
       </div>
       <div class="stat-card">
         <canvas class="card-fx" aria-hidden="true"></canvas>
@@ -481,25 +515,25 @@
           <canvas class="card-fx" aria-hidden="true"></canvas>
           <div class="card-ic"></div>
           <h3>Growth &amp; Systems</h3>
-          <p>I like designing the whole system — how people first hear about something and how they end up sticking around. Positioning, funnels, go-to-market for launches, and the unglamorous plumbing that makes growth repeatable.</p>
+          <p>I like designing the whole system from the start, how people first hear about something and how they end up sticking around. Positioning, funnels, go-to-market for launches, and the unglamorous plumbing that makes growth repeatable.</p>
         </div>
         <div class="card">
           <canvas class="card-fx" aria-hidden="true"></canvas>
           <div class="card-ic"></div>
           <h3>Creators &amp; KOLs</h3>
-          <p>I enjoy working with creators as real partners, not one-off posts. Finding the right voices, building genuine relationships, and letting them tell the story their own way.</p>
+          <p>I enjoy working with creators as real partners, not one-off posts. Finding the right voices for the right projects and audiences, building genuine relationships, and letting them tell the story their own way.</p>
         </div>
         <div class="card">
           <canvas class="card-fx" aria-hidden="true"></canvas>
           <div class="card-ic"></div>
           <h3>Partnerships</h3>
-          <p>Some of the best growth comes from the right collaboration. I've sourced and structured ecosystem partnerships and co-marketing deals — connecting the right teams in ways that actually make sense for everyone.</p>
+          <p>Some of the best growth comes from the right collaboration. I've sourced and structured ecosystem partnerships and co-marketing deals. Connecting the right teams in ways that actually make sense for everyone.</p>
         </div>
         <div class="card">
           <canvas class="card-fx" aria-hidden="true"></canvas>
           <div class="card-ic"></div>
           <h3>AI &amp; Automation</h3>
-          <p>I'm fascinated by how AI is changing the work — scaling content, personalizing the way we reach people, and quietly taking the busywork off everyone's plate.</p>
+          <p>I'm fascinated by how AI is changing the work, scaling content, personalizing the way we reach people, and quietly taking the busywork off everyone's plate boosting our creativity.</p>
         </div>
         <div class="card">
           <canvas class="card-fx" aria-hidden="true"></canvas>
@@ -511,7 +545,7 @@
           <canvas class="card-fx" aria-hidden="true"></canvas>
           <div class="card-ic"></div>
           <h3>Community</h3>
-          <p>I've built and grown communities from a cold start — onboarding, engagement, retention, the human stuff that turns a follower count into a real place people want to be. I've taken one from zero to 25K.</p>
+          <p>I've built and grown communities from a cold start. Onboarding, engagement, retention, the human stuff that turns a follower count into a real place people want to be.</p>
         </div>
       </div>
     </section>
@@ -521,7 +555,7 @@
       <div class="fun-head">
         <span class="kicker">Just for Fun - Highlights</span>
         <h2 class="section-title lg" style="margin-top:20px">Things I Tinker With</h2>
-        <p class="fun-sub">Side projects, experiments, and random things I build when I'm curious. I'll drop them here as they happen — more soon.</p>
+        <p class="fun-sub">Side projects, highlights, experiments, and random things I build when I'm curious. I'll drop them here as they happen. More coming soon.</p>
       </div>
       <div class="fun-grid">
         <a class="fun-card" href="#"><span class="fun-tag">Experiment</span><h3>Coming soon</h3><p>A spot for a side project or experiment I've been playing with.</p></a>
@@ -536,7 +570,7 @@
     <canvas class="contour-fx" aria-hidden="true"></canvas>
     <div class="cta-inner">
       <h2>Let's Talk</h2>
-      <p>I'm always up for a good conversation — about growth, crypto, AI, or whatever you're building. No pitch, no pressure. Just say hi.</p>
+      <p>I'm always up for a good conversation, about growth, crypto, AI, or whatever you're building. No pitch, no pressure. Just say hi.</p>
       <div class="cta-actions">
         <a href="#contact" class="btn btn-primary">Contact me ↓</a>
         <a href="#" class="btn btn-ghost">Find Me on X →</a>
@@ -701,12 +735,20 @@ function layout() {
   cell = CONFIG.fontSize;
   canvas.width = gridCols * cell;
   canvas.height = gridRows * cell;
-  // Size the portrait to fill the viewport height, then push it off the right edge
-  const targetH = window.innerHeight * CONFIG.fillHeight;
-  const scale = targetH / canvas.height;
-  canvas.style.width = Math.round(canvas.width * scale) + 'px';
-  canvas.style.height = Math.round(canvas.height * scale) + 'px';
-  canvas.style.transform = `translateX(${CONFIG.bleedRight * 100}%)`;
+  if (window.matchMedia('(max-width: 700px)').matches) {
+    // Phones: fit the portrait to the viewport WIDTH and center it (no right-edge
+    // push, no left mask) — the mobile hero shows the whole figure centered.
+    const scale = (window.innerWidth * 1.04) / canvas.width;
+    canvas.style.width = Math.round(canvas.width * scale) + 'px';
+    canvas.style.height = Math.round(canvas.height * scale) + 'px';
+    canvas.style.transform = 'none';
+  } else {
+    // Desktop: fill the viewport height, then push off the right edge.
+    const scale = (window.innerHeight * CONFIG.fillHeight) / canvas.height;
+    canvas.style.width = Math.round(canvas.width * scale) + 'px';
+    canvas.style.height = Math.round(canvas.height * scale) + 'px';
+    canvas.style.transform = `translateX(${CONFIG.bleedRight * 100}%)`;
+  }
   ctx.font = `${cell}px "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace`;
   ctx.textBaseline = 'top';
 }
@@ -1184,12 +1226,43 @@ img.src = CONFIG.src;
   const heroText = document.getElementById('heroText');
   const stage    = document.getElementById('portraitStage');
   const flow     = document.getElementById('flow');
+  const clamp  = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  // ===== MOBILE hero: intro (orb + "Welcome" -> explode -> ASCII), then the
+  // heading + description fade UP over the portrait as the user scrolls. The
+  // whole desktop collapse below is skipped on phones. =====
+  if (window.matchMedia('(max-width: 700px)').matches) {
+    window.__collapse = 0;
+    document.body.classList.add('m-intro');                // orb + Welcome, ASCII hidden
+    setTimeout(() => {
+      document.body.classList.remove('m-intro');
+      document.body.classList.add('m-exploded', 'm-ready'); // ASCII explodes in, scroll arrow appears
+    }, 1900);
+    let ticking = false;
+    function onScroll() {
+      if (ticking) return; ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+        const vh = innerHeight, y = scrollY;
+        const pin  = clamp(y / (vh * 0.38), 0, 1);              // text fades UP into view
+        const pout = clamp((y - vh * 0.70) / (vh * 0.24), 0, 1); // then out before About rises
+        heroText.style.opacity = String(pin * (1 - pout));
+        heroText.style.transform = `translateX(-50%) translateY(${(1 - pin) * 26 - pout * 34}px)`;
+        if (document.body.classList.contains('m-ready'))
+          stage.style.opacity = String((1 - 0.45 * pin) * (1 - pout));  // portrait dims, then clears for About
+        document.body.classList.toggle('m-scrolled', y > 24);
+      });
+    }
+    addEventListener('scroll', onScroll, { passive: true });
+    addEventListener('resize', onScroll);
+    onScroll();
+    return;
+  }
+
   const h1       = heroText.querySelector('.hero-h1');
   const blocks   = [heroText.querySelector('.eyebrow'),
                     heroText.querySelector('.hero-sub'),
                     heroText.querySelector('.btn-row')].filter(Boolean);
-
-  const clamp  = (v, a, b) => Math.max(a, Math.min(b, v));
   const smooth = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
   const rand   = (a, b) => a + Math.random() * (b - a);
 
@@ -1279,10 +1352,23 @@ img.src = CONFIG.src;
   setTimeout(measure, 450);   // re-measure once fonts settle
 
   // --- scroll-reveal entrances (lamalama-style section beats) ---
-  const targets = document.querySelectorAll('.section-title, .section > .kicker, .stat-card, .cards .card, .fun-grid > *, .cta-inner > *, .contact-head, .form-card, .footer-brand, .footer-col');
+  const targets = document.querySelectorAll('.section-title, .section > .kicker, .stat-card, .cards .card, .fun-grid > *, .cta-inner > *, .contact-head, .footer-brand, .footer-col');
   targets.forEach((t) => t.classList.add('reveal'));
   const io = new IntersectionObserver((entries) => {
-    entries.forEach((en) => { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
+    entries.forEach((en) => {
+      if (!en.isIntersecting) return;
+      const t = en.target;
+      t.classList.add('in');
+      io.unobserve(t);
+      // Re-enable hover only once the slide-in has actually finished, so the
+      // cursor can't interrupt a card mid-flight.
+      if (t.matches('.cards .card')) {
+        let done = false;
+        const settle = () => { if (done) return; done = true; t.classList.add('settled'); };
+        t.addEventListener('transitionend', (e) => { if (e.propertyName === 'transform') settle(); }, { once: true });
+        setTimeout(settle, 1300);   // fallback if transitionend doesn't fire
+      }
+    });
   }, { threshold: 0.14, rootMargin: '0px 0px -6% 0px' });
   targets.forEach((t) => io.observe(t));
 
