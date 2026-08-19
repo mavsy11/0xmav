@@ -254,6 +254,8 @@
   .contact-head .kicker { margin-bottom: 18px; }
   .contact-head h2 { font-family: var(--display); font-weight: 700; font-size: clamp(1.8rem, 3vw, 2.6rem); margin-bottom: 12px; }
   .contact-head p { color: var(--muted); }
+  .contact-head p a { color: #e6e6e6; border-bottom: 1px solid rgba(255,255,255,.28); transition: color .2s, border-color .2s; }
+  .contact-head p a:hover { color: #fff; border-bottom-color: #fff; }
   /* Solid card, NO backdrop-filter and NO scroll-driven transform: the
      blur+transform combo caused intermittent GPU compositing artifacts
      (phantom seams / "clipping") during scroll. Kept dead simple on purpose. */
@@ -352,6 +354,8 @@
   .contact.light-zone .kicker { color: #6a675f; }
   .contact.light-zone .contact-head h2 { color: #17171a; }
   .contact.light-zone .contact-head p { color: #45433e; }
+  .contact.light-zone .contact-head p a { color: #17171a; border-bottom-color: rgba(0,0,0,.25); }
+  .contact.light-zone .contact-head p a:hover { border-bottom-color: #17171a; }
   .contact.light-zone .form-card { background: rgba(255,255,255,.55); border-color: rgba(0,0,0,.12); }
   .contact.light-zone .field label { color: #2a2925; }
   .contact.light-zone .field input, .contact.light-zone .field textarea { background: rgba(255,255,255,.72); border-color: rgba(0,0,0,.18); color: #17171a; }
@@ -591,7 +595,7 @@
     <div class="contact-head">
       <span class="kicker">Get in Touch</span>
       <h2>Say Hello</h2>
-      <p>Drop me a line and I'll get back to you. I read everything.</p>
+      <p>Fill out the form and I&rsquo;ll get back to you &mdash; or just message me on <a href="https://x.com/0xMav" target="_blank" rel="noopener noreferrer">X</a> or <a href="https://t.me/mave_0x" target="_blank" rel="noopener noreferrer">Telegram</a>. I read everything.</p>
     </div>
     <form class="form-card" id="applyForm" action="https://formsubmit.co/maverick.eth.11@gmail.com" method="POST">
       <!-- FormSubmit config (free, no backend). JS submits via AJAX; these also
