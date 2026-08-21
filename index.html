@@ -784,7 +784,7 @@
     <div class="footer-bottom">© 2026 Maverick. Made with curiosity.</div>
   </footer>
 
-<!-- Lenis 1.1.14, self-hosted on purpose. As a blocking <script> from a public
+<!-- Lenis 1.1.14, self-hosted on purpose. As a render-blocking tag from a public
      CDN this was a single point of failure for the whole page: any network that
      cannot reach unpkg (corporate proxy, ad/CDN blocker, flaky link) stalls
      parsing of every inline script below it, and if it fails outright the page
@@ -1627,7 +1627,41 @@ img.src = CONFIG.src;
   if (window.Lenis && !location.search.includes('nolenis')) {
     const lenis = new Lenis({ lerp: 0.09, smoothWheel: true });
     window.__lenis = lenis;
-    window.__rafLoop('lenis', (t) => lenis.raf(t));
+
+    /* STALE-TARGET RESYNC — this is what made the page bounce back up.
+       Lenis keeps its own idea of where the page should be (targetScroll). When
+       something scrolls the page that Lenis did NOT drive — dragging the
+       scrollbar, PageDown/arrow keys, find-in-page, an extension, a precision
+       touchpad — Lenis stops animating and holds position, but it never updates
+       that target. It is now stale, pointing at wherever Lenis last was.
+
+       The next wheel notch then resumes from the stale value: target becomes
+       (stale + one notch), and Lenis smoothly drags the page from where you
+       actually are all the way back there. Scroll down with the scrollbar, touch
+       the wheel, and you snap back to the top — which is exactly what happens
+       when the wheel is unavailable and the scrollbar is the only way down.
+
+       Reproduced: page at 1200, stale target 0, one wheel DOWN -> animated to 50.
+
+       So whenever the real position and Lenis's animated position disagree,
+       Lenis is out of sync with reality: hand it reality. scrollTo(immediate)
+       sets both animatedScroll and targetScroll, and re-entry is harmless
+       because the difference is then zero.
+       Checked every frame rather than on the scroll event: scroll events are
+       delivered asynchronously and can be coalesced or dropped, and this must
+       hold before the very next wheel notch is applied. A float compare per
+       frame costs nothing. */
+    // One frame of the scroll layer: resync FIRST, then advance. Exposed so the
+    // ordering can be exercised directly rather than only through rAF.
+    window.__lenisFrame = (t) => {
+      const L = window.__lenis;
+      if (!L) return;
+      if (Math.abs(window.scrollY - L.animatedScroll) > 3) {
+        L.scrollTo(window.scrollY, { immediate: true, force: true });
+      }
+      L.raf(t);
+    };
+    window.__rafLoop('lenis', (t) => window.__lenisFrame(t));
 
     /* WHEEL WATCHDOG.
        Lenis takes ownership of the wheel — it preventDefault()s the event and
