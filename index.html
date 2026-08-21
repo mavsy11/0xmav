@@ -1155,6 +1155,12 @@ function draw(time) {
           dy += Math.sin(ang) * sw;
           let a = 1 - (e - 0.5) / 0.4;                     // dissolve over the flight
           if (a < 0) a = 0; else if (a > 1) a = 1;
+          // Fully dissolved: skip it. It was still being drawn at globalAlpha 0,
+          // paying a full draw call to paint nothing. Since more cells finish
+          // their flight as the collapse proceeds, the frame gets progressively
+          // cheaper exactly while the animation is on screen — which is where a
+          // slow machine needs the headroom most.
+          if (a <= 0) continue;
           if (a < 1) {
             ctx.globalAlpha = a;
             ctx.fillText(ch, dx, dy);
@@ -1867,9 +1873,69 @@ img.src = CONFIG.src;
       apply();
     }
 
-    function apply() {
+    /* ------------------------------------------------------------------
+       MOTION SMOOTHING — why this is not simply scroll-linked.
+
+       The collapse used to read p straight off scrollY on every scroll event,
+       so it rendered exactly as many intermediate states as the input device
+       produced events. That makes the motion a property of the mouse:
+
+         Mac trackpad   continuous, high-resolution deltas — dozens of events
+                        per flick, dozens of frames, the effect you designed.
+         Windows wheel  discrete notches of roughly 100px. The whole collapse
+                        spans 0.9 x viewport (~810px), so the entire animation
+                        gets about EIGHT samples. It lurches through and is over.
+
+       So p is now a damped value chasing the scroll-derived target instead of
+       being it. Coarse input still moves the target in jumps, but what is drawn
+       glides. The damping is exponential in real elapsed time, which also makes
+       the motion identical at 60fps and at 20fps — without that, a slower
+       machine animates at a different speed, which is the other half of why
+       Windows looked wrong.
+
+       Tuned fast on purpose (~2 frames of lag at 60fps) so a trackpad, which is
+       already smooth, is essentially unaffected.
+       ------------------------------------------------------------------ */
+    let pTarget = 0, pNow = 0, lastFrameT = 0;
+    const LAMBDA = 25;                     // damping rate, 1/s
+
+    function readTarget() {
+      pTarget = clamp(scrollY / (innerHeight * 0.9), 0, 1);
+    }
+
+    function collapseFrame(now) {
       if (!base) return;
-      const p = clamp(scrollY / (innerHeight * 0.9), 0, 1);
+      // Sample the scroll position HERE rather than trusting a scroll event.
+      // Scroll events are async and can be coalesced or dropped, and a missed
+      // one leaves the target stale — the animation then sits at one point
+      // while the page is somewhere else. That is exactly the failure mode
+      // that made Lenis bounce. One property read a frame removes it.
+      readTarget();
+      // Clamp BOTH ends. The upper bound stops a long stall from jumping the
+      // easing; the lower bound is the important one — a zero or negative dt
+      // (a repeated timestamp, a clock that steps backwards, the first frame
+      // after a remount) makes exp(-LAMBDA*dt) >= 1 and the step explodes
+      // instead of easing.
+      const dt = lastFrameT ? Math.min(0.05, Math.max(0.001, (now - lastFrameT) / 1000)) : 1 / 60;
+      lastFrameT = now;
+      const gap = pTarget - pNow;
+      if (Math.abs(gap) < 0.0005) {         // settled: snap once, then idle
+        if (pNow !== pTarget) { pNow = pTarget; applyAt(pNow); }
+        return;
+      }
+      pNow += gap * (1 - Math.exp(-LAMBDA * dt));
+      applyAt(pNow);
+    }
+
+    function apply() {                      // snap immediately (resize / first paint)
+      readTarget();
+      pNow = pTarget;
+      lastFrameT = 0;
+      applyAt(pNow);
+    }
+
+    function applyAt(p) {
+      if (!base) return;
       window.__collapse = p;                           // the flow layer reads this
 
       // ---- headline: characters are SUCKED into the orb (converge + spiral + shrink) ----
@@ -1910,14 +1976,16 @@ img.src = CONFIG.src;
       stage.style.pointerEvents = pe;
     }
 
-    addEventListener('scroll', apply, { passive: true });
+    // No scroll listener: collapseFrame samples scrollY itself every frame.
     addEventListener('resize', measure);
     addEventListener('load', measure);
     measure();
     const settle = setTimeout(measure, 450);   // re-measure once fonts settle
+    window.__collapseFrame = collapseFrame;    // exposed so the easing can be tested directly
+    const stopCollapse = window.__rafLoop('hero-collapse', collapseFrame);
 
     return function teardownDesktop() {
-      removeEventListener('scroll', apply);
+      stopCollapse();
       removeEventListener('resize', measure);
       removeEventListener('load', measure);
       clearTimeout(settle);
