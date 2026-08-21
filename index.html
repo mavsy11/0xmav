@@ -382,56 +382,124 @@
     .portrait-stage { opacity: .5; }
   }
 
-  /* mobile-only hero intro bits — hidden on desktop */
-  .m-welcome, .m-scroll { display: none; }
+  /* ==========================================================================
+     DESKTOP / PHONE LINE IN THE SAND
+     Everything ABOVE this point is the DESKTOP build and is off limits to
+     phone work — the hero positioning in particular is locked. Everything
+     phone-specific goes INSIDE the single @media block below, which uses the
+     exact same query as PHONE_MQ in the script (keep the two in sync; they are
+     the only two copies). <html> carries data-build="desktop|phone" so you can
+     see at a glance which build is live.
+     ========================================================================== */
 
-  /* ============================ MOBILE hero (phones) ============================
-     Intro: beeping orb + "Welcome" -> explodes into the centered ASCII portrait,
-     nav on top, a scroll arrow below. No hero text until the user scrolls, then
-     the heading + description fade UP over the portrait. */
-  @media (max-width: 700px) {
+  /* mobile-only hero intro bits — hidden on desktop */
+  .m-welcome, .m-scroll, .m-hint { display: none; }
+
+  /* ============================================================================
+     MOBILE — phones get their OWN build, not a squeezed desktop.
+     Everything phone-specific lives in this one block plus the IS_PHONE branches
+     in the scripts; the desktop/tablet CSS above is deliberately untouched.
+
+     The sequence:
+       1. intro   — orb pulses on black + "WELCOME"  (aborts on any scroll/touch)
+       2. reveal  — portrait blooms in centered, "DRAG TO REVEAL" hint
+       3. touch   — sideways drag paints the reveal trail, tap drops a burst
+                    (touch-action:pan-y keeps vertical scrolling native)
+       4. scroll  — headline fades up over the portrait, then the WHOLE fixed
+                    hero layer is hard-killed so it can never ghost through the
+                    sections below.
+     The media list covers portrait phones and landscape phones; it can't match a
+     tablet in portrait or a desktop monitor.
+     ============================================================================ */
+  @media (max-width: 700px), (max-height: 500px) and (orientation: landscape) and (max-width: 932px) {
+
+    /* ---------- stage ---------- */
     .portrait-stage {
       left: 0; right: 0; width: 100vw; justify-content: center; opacity: 1;
-      transition: opacity .55s ease, transform .85s cubic-bezier(.16,.8,.3,1);
+      height: 100vh; height: 100dvh;
+      transition: opacity .5s ease, transform .8s cubic-bezier(.16,.8,.3,1);
+      touch-action: pan-y;          /* vertical = scroll, horizontal = reveal */
     }
-    #ascii { -webkit-mask-image: none; mask-image: none; }   /* centered: drop the left-edge fade */
+    #ascii { -webkit-mask-image: none; mask-image: none; touch-action: pan-y; }
+    #flow  { height: 100vh; height: 100dvh; }
+    #cursor { display: none; }      /* mouse-only halftone trail; never on touch */
 
-    /* extra scroll room so the ASCII hero + text sequence plays out before the
-       About section rises up and covers it */
-    .hero-spacer { height: 185vh; }
-    /* hero text: hidden until scroll, centered, over the lower portrait. Kept at
-       the hero z-index (below .sections) so About cleanly covers it on arrival. */
+    /* THE ghost fix. Past the hero, kill the fixed canvases outright —
+       `visibility` (not just opacity) is what stops the frozen last frame of the
+       orb + divider line bleeding through the transparent sections. */
+    body.m-past .portrait-stage,
+    body.m-past #flow,
+    body.m-past .hero-text,
+    body.m-past .m-welcome,
+    body.m-past .m-hint,
+    body.m-past .m-scroll { visibility: hidden; opacity: 0 !important; }
+
+    /* extra scroll room so the hero sequence plays before About rises over it */
+    .hero-spacer { height: 185vh; height: 185dvh; }
+
+    /* ---------- hero text ---------- */
+    /* pointer-events:none matters: this box is 90vw x 100vh at z-index 3, so
+       while it is invisible it was swallowing every tap meant for the portrait
+       (and its buttons were tappable while fully transparent). */
     .hero-text {
-      width: 90vw; left: 50%; transform: translateX(-50%); height: 100vh;
+      width: 90vw; left: 50%; transform: translateX(-50%);
+      height: 100vh; height: 100dvh;
       align-items: center; text-align: center; justify-content: flex-end;
-      gap: 16px; padding: 0 0 15vh; opacity: 0; z-index: 3;
+      gap: 16px; padding: 0 0 calc(13vh + env(safe-area-inset-bottom));
+      opacity: 0; z-index: 3; pointer-events: none;
+    }
+    body.m-textin .hero-text { pointer-events: auto; }
+    /* The headline lands on the portrait's busiest region. A bottom-up scrim,
+       full-bleed past the 90vw text column and fading with it, buys the copy
+       enough contrast without hiding the figure. z-index -1 keeps it inside the
+       hero's own stacking context: behind the text, still above the canvas. */
+    .hero-text::before {
+      content: ""; position: absolute; inset: auto -6vw 0; height: 76%; z-index: -1;
+      background: linear-gradient(to top,
+        rgba(9,9,10,.95) 30%, rgba(9,9,10,.78) 58%, rgba(9,9,10,.38) 80%, transparent 100%);
+      pointer-events: none;
     }
     .hero-text .eyebrow { align-self: center; }
     .hero-h1 { white-space: normal; font-size: clamp(2.6rem, 13vw, 3.8rem); }
     .hero-sub { font-size: 1rem; max-width: 34ch; }
     .btn-row { justify-content: center; }
 
-    /* --- intro (pre-explode): hide the ASCII, show the orb + Welcome --- */
+    /* ---------- 1. intro ---------- */
     body.m-intro .portrait-stage { opacity: 0; transform: scale(.35); }
     .m-welcome {
       display: block; position: fixed; left: 0; right: 0; top: 57%; text-align: center;
       z-index: 47; font-family: var(--mono); text-transform: uppercase; letter-spacing: .34em;
-      font-size: 12px; color: var(--cream); opacity: 0; transition: opacity .5s ease; pointer-events: none;
+      font-size: 12px; color: var(--cream); opacity: 0; transition: opacity .4s ease; pointer-events: none;
     }
     body.m-intro .m-welcome { opacity: .85; }
+    /* Structural guarantee, not a timing one: the moment the page has scrolled
+       at all, the intro overlay is gone — even if the JS that ends the intro
+       were somehow delayed. This is what put "WELCOME" on top of the About
+       copy for anyone who scrolled inside the first two seconds. */
+    body.m-scrolled .m-welcome { opacity: 0 !important; }
 
-    /* --- scroll hint: appears after the explode, fades once the user scrolls --- */
+    /* ---------- 2. reveal hint ---------- */
+    .m-hint {
+      display: block; position: fixed; left: 0; right: 0; bottom: calc(74px + env(safe-area-inset-bottom));
+      text-align: center; z-index: 47; pointer-events: none;
+      font-family: var(--mono); text-transform: uppercase; letter-spacing: .22em;
+      font-size: 10px; color: var(--cream); opacity: 0; transition: opacity .6s ease;
+    }
+    body.m-ready .m-hint { opacity: .55; }
+    body.m-touched .m-hint, body.m-scrolled .m-hint { opacity: 0; }
+
+    /* ---------- scroll cue ---------- */
     .m-scroll {
-      display: block; position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
-      z-index: 47; width: 40px; height: 40px; opacity: 0; transition: opacity .5s ease;
+      display: flex; align-items: center; justify-content: center;
+      position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      z-index: 47; width: 48px; height: 48px; opacity: 0; transition: opacity .5s ease;
     }
     body.m-ready .m-scroll { opacity: .85; }
     body.m-scrolled .m-scroll { opacity: 0; pointer-events: none; }
-    /* the flow streams/divider fan toward the (absent) left text — keep the orb
-       but fade the rest once the portrait is centered on screen */
     body.m-ready #flow { opacity: .4; transition: opacity 1s ease; }
     .m-arrow {
-      display: block; width: 13px; height: 13px; margin: 8px auto 0;
+      display: block; width: 13px; height: 13px;
       border-right: 2px solid var(--cream); border-bottom: 2px solid var(--cream);
       transform: rotate(45deg); animation: m-bounce 1.5s ease-in-out infinite;
     }
@@ -439,6 +507,49 @@
       0%,100% { transform: rotate(45deg) translate(-2px,-2px); opacity: .5; }
       50%     { transform: rotate(45deg) translate(2px,2px);   opacity: 1; }
     }
+
+    /* ---------- touch ergonomics ---------- */
+    /* 44px minimum hit areas. The visual size stays put; only the padding grows. */
+    .nav-inner { padding: 9px 9px 9px 11px; }
+    .nav-logo { padding: 12px; margin: -12px; }
+    .nav-rotator { padding: 15px 10px; margin: -15px -10px; font-size: 12px; }
+    .nav-menu-btn { width: 44px; height: 44px; }
+    .nav-menu-item { padding: 19px 20px; }
+    .nav-cta-ghost, .nav-cta-solid { padding: 16px 12px; }
+    .socials a { width: 44px; height: 44px; }
+    .footer-col a { padding: 14px 0; margin-bottom: 0; }
+    .contact-head p a { display: inline-block; padding: 6px 0; }
+
+    /* iOS Safari zooms the whole page when a focused input is under 16px. */
+    .field input, .field textarea { font-size: 16px; padding: 14px 15px; }
+    .field textarea { min-height: 150px; }
+
+    /* :hover sticks after a tap on touch — neutralise the lift/scale effects so
+       cards don't stay stuck mid-transform after you scroll past them. */
+    .card:hover, .stat-card:hover, .fun-card:hover, .stat-card .stat:hover,
+    .btn:hover, .btn-primary:hover, .btn-ghost:hover, .btn-solid:hover,
+    .nav-cta-solid:hover { transform: none; }
+    .card:hover .card-ic { transform: rotate(45deg); box-shadow: 0 0 14px rgba(255,255,255,.3); }
+    .card:hover h3, .stat-card .stat:hover .stat-num { text-shadow: none; }
+    .nav-menu-item:hover { padding-left: 20px; }
+
+    /* ---------- density ---------- */
+    .section { padding: 88px 22px; }
+    .card { padding: 26px 24px 28px; }
+    .card h3 { font-size: 1.35rem; }
+    .stat-card { padding: 30px 26px; gap: 26px 18px; }
+    footer { padding: 56px 22px calc(32px + env(safe-area-inset-bottom)); }
+  }
+
+  /* landscape phones: the hero is only ~390px tall, so shrink the type and let
+     the portrait sit behind a shorter text block. */
+  @media (max-height: 500px) and (orientation: landscape) and (max-width: 932px) {
+    .hero-text { padding-bottom: calc(6vh + env(safe-area-inset-bottom)); gap: 10px; }
+    .hero-h1 { font-size: 2rem; }
+    .hero-sub { font-size: .9rem; max-width: 46ch; }
+    .hero-spacer { height: 220vh; height: 220dvh; }
+    .m-hint { display: none; }        /* no room for it under a 390px-tall hero */
+    .section { padding: 64px 22px; }
   }
 </style>
 </head>
@@ -491,6 +602,7 @@
 
   <!-- mobile-only hero intro bits (hidden on desktop) -->
   <div class="m-welcome" aria-hidden="true">Welcome</div>
+  <div class="m-hint" aria-hidden="true">Drag across to reveal</div>
   <a class="m-scroll" href="#about" aria-label="Scroll down"><span class="m-arrow"></span></a>
 
   <div class="hero-spacer"></div>
@@ -695,6 +807,95 @@ const CONFIG = {
   },
 };
 
+/* ============================================================
+   BUILD SWITCH  —  the ONE place that decides desktop vs phone.
+   ------------------------------------------------------------
+   Two builds ship in this file and exactly one of them is mounted at a time:
+
+     desktop  the locked hero — portrait pinned right, headline on the left,
+              scroll sucks the headline into the orb (the "collapse").
+     phone    its own touch-native hero — orb intro, centred portrait,
+              drag/tap to reveal, headline fades up on scroll.
+
+   Where each build lives:
+     CSS  desktop rules are everything OUTSIDE the phone @media block;
+          phone rules are INSIDE it (search "MOBILE — phones get their OWN
+          build"). Never gate desktop behaviour on a max-width query.
+     JS   everything device-specific asks window.__isPhone(); the hero's two
+          builds are mountDesktopHero() / mountPhoneHero() in the hero
+          controller. Shared page behaviour lives in its own IIFE and runs on
+          both.
+
+   The live build is stamped on <html data-build="desktop|phone">, so which one
+   is running is visible in the inspector. There is deliberately no URL override:
+   the CSS is gated on the media query, so anything that moved JS to the other
+   build without moving CSS with it would just desync the two. Use the browser's
+   device emulation to test the phone build.
+
+   Two things this switch has to get right, both of which broke the desktop:
+
+     1. A window that has not been sized yet reports innerWidth 0 — a
+        restoring background tab, a prerender, an offscreen iframe. EVERY
+        max-width query matches 0, so asking matchMedia at that moment answers
+        "phone" on a 27-inch monitor. Fall back to screen.width until the
+        viewport is real.
+     2. The choice must not be one-shot. The hero used to decide once at parse
+        time and `return` out of the desktop code forever, so a single bad
+        answer (or just opening the window narrow and maximising it) left the
+        page with no headline collapse, no Lenis scrolling and no section
+        reveals for the rest of the session. Subscribers re-mount instead.
+   ============================================================ */
+const PHONE_MQ = '(max-width: 700px), (max-height: 500px) and (orientation: landscape) and (max-width: 932px)';
+const phoneMQL = window.matchMedia(PHONE_MQ);
+
+function isPhone() {
+  if (!window.innerWidth) return (window.screen && screen.width ? screen.width : 1280) <= 700;
+  return phoneMQL.matches;
+}
+window.__isPhone = isPhone;
+
+const buildSubs = [];
+let currentBuild = null;
+function syncBuild() {
+  const b = isPhone() ? 'phone' : 'desktop';
+  if (b === currentBuild) return;
+  currentBuild = b;
+  window.__build = b;
+  document.documentElement.setAttribute('data-build', b);
+  if (window.__relayoutPortrait) window.__relayoutPortrait();
+  for (const fn of buildSubs.slice()) fn(b);
+}
+window.__onBuildChange = (fn) => { buildSubs.push(fn); };
+syncBuild();
+addEventListener('resize', syncBuild);
+addEventListener('orientationchange', syncBuild);
+addEventListener('load', syncBuild);
+if (phoneMQL.addEventListener) phoneMQL.addEventListener('change', syncBuild);
+else if (phoneMQL.addListener) phoneMQL.addListener(syncBuild);
+
+/* Character resolution per device. 150 cols crammed into ~390 CSS px is
+   illegible mush AND 22,500 fillText calls every frame on a phone battery.
+   78 cols lands ~1:1 on device pixels and costs ~3.7x less. The reveal is
+   retuned too: radius 165 covers nearly half a phone-sized portrait, and a
+   0.45s trail is gone before a finger has finished lifting. */
+const RES = {
+  desktop: { cols: 150, fontSize: 8,  radius: 165, trailPersist: 0.45, trailSpacing: 7  },
+  phone:   { cols: 78,  fontSize: 10, radius: 92,  trailPersist: 1.05, trailSpacing: 10 },
+};
+let resMode = null;
+function applyRes() {
+  const m = isPhone() ? 'phone' : 'desktop';
+  if (m === resMode) return false;          // no change -> no grid rebuild
+  resMode = m;
+  const r = RES[m];
+  CONFIG.cols = r.cols;
+  CONFIG.fontSize = r.fontSize;
+  CONFIG.reveal.radius = r.radius;
+  CONFIG.reveal.trailPersist = r.trailPersist;
+  CONFIG.reveal.trailSpacing = r.trailSpacing;
+  return true;
+}
+
 const canvas = document.getElementById('ascii');
 const ctx = canvas.getContext('2d');
 
@@ -745,10 +946,15 @@ function layout() {
   cell = CONFIG.fontSize;
   canvas.width = gridCols * cell;
   canvas.height = gridRows * cell;
-  if (window.matchMedia('(max-width: 700px)').matches) {
-    // Phones: fit the portrait to the viewport WIDTH and center it (no right-edge
-    // push, no left mask) — the mobile hero shows the whole figure centered.
-    const scale = (window.innerWidth * 1.04) / canvas.width;
+  if (isPhone()) {
+    // Phones: centre the whole figure and fit it to whichever axis runs out
+    // first — width in portrait, height in landscape (the old width-only fit
+    // pushed the portrait off both ends of a rotated phone).
+    // leave more headroom on a short (landscape) viewport so the nav on top and
+    // the scroll cue at the bottom aren't sitting on the figure
+    const vFit = window.innerHeight < 520 ? 0.76 : 0.92;
+    const scale = Math.min((window.innerWidth * 1.04) / canvas.width,
+                           (window.innerHeight * vFit) / canvas.height);
     canvas.style.width = Math.round(canvas.width * scale) + 'px';
     canvas.style.height = Math.round(canvas.height * scale) + 'px';
     canvas.style.transform = 'none';
@@ -890,14 +1096,57 @@ function draw(time) {
 
 let raf;
 let t0 = performance.now();
+
+/* ---------------------------------------------------------------------------
+   FRAME BUDGET — why the desktop hero could not be scrolled back up.
+
+   draw() issues ~22,500 canvas text calls per frame (150x150 cells, and the
+   avatar has no transparent pixels so every cell paints). That measures ~20ms
+   on an M-series Mac and 3-5x that on a mid-range Windows laptop, where
+   Canvas2D text goes through a slower rasteriser.
+
+   It runs on the same main thread as Lenis, and Lenis is what actually advances
+   the scroll position — so on a slow machine every frame the portrait rendered
+   was a frame the page did not scroll. And because draw() only runs while the
+   hero is on screen (scrollY < 1.4vh), the REST of the page stayed fast: you
+   scrolled down, escaped the slow zone and everything felt fine; you scrolled
+   back up, hit the hero, and the page stopped responding. Hence "scroll down
+   works, scroll up doesn't", and hence "fine on Mac, broken on Windows" — the
+   Mac was just fast enough to stay under the frame budget.
+
+   Fix: measure what a draw actually costs on THIS machine and render every Nth
+   frame so the portrait never claims more than BUDGET_MS of a frame. The
+   shimmer is a slow breathing wave and the reveal trail persists ~0.45s, so a
+   lower portrait frame rate reads as normal. A page you cannot scroll does not.
+   A machine that measures under the budget stays at stride 1 — unchanged.
+   --------------------------------------------------------------------------- */
+const BUDGET_MS = 22;     // ms of one frame the portrait may spend before we skip frames
+let drawCost = 0;         // rolling estimate of a single draw(), ms
+let frameNo = 0;
+window.__portraitStats = () => ({ drawCost: +drawCost.toFixed(1),
+                                  stride: drawCost > BUDGET_MS ? Math.ceil(drawCost / BUDGET_MS) : 1 });
+
 function loop() {
   const time = (performance.now() - t0) / 1000;
   // only pay for the (expensive) portrait render while the hero is on screen
-  if (window.scrollY < window.innerHeight * 1.4) draw(time);
+  if (window.scrollY < window.innerHeight * 1.4 &&
+      !document.body.classList.contains('m-past')) {
+    const stride = drawCost > BUDGET_MS ? Math.ceil(drawCost / BUDGET_MS) : 1;
+    if (frameNo++ % stride === 0) {
+      const tDraw = performance.now();
+      draw(time);
+      const cost = performance.now() - tDraw;
+      drawCost = drawCost ? drawCost * 0.85 + cost * 0.15 : cost;
+    }
+  }
   raf = requestAnimationFrame(loop);
 }
 
 // ---- pointer wiring ----
+// Drag works for both input kinds: with a mouse `pointermove` fires on hover,
+// with a finger it only fires while the finger is down — which is exactly the
+// behaviour we want. CSS `touch-action: pan-y` on the canvas means a vertical
+// swipe still scrolls the page natively and only sideways drags land here.
 canvas.addEventListener('pointermove', (e) => {
   pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true;
   // record a trail point once the cursor has moved far enough
@@ -908,12 +1157,46 @@ canvas.addEventListener('pointermove', (e) => {
   }
 });
 canvas.addEventListener('pointerleave', () => { pointer.active = false; });
-window.addEventListener('resize', layout);
+
+// TAP TO REVEAL (touch only): a single tap produces no movement, so it would
+// otherwise do nothing. Drop a small ring of trail points instead, which the
+// existing reveal math renders as a burst that blooms and fades.
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'mouse') return;
+  pointer.x = e.clientX; pointer.y = e.clientY; pointer.active = true;
+  const now = performance.now();
+  trail.push({ x: e.clientX, y: e.clientY, born: now });
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * 6.2832;
+    trail.push({ x: e.clientX + Math.cos(a) * 26, y: e.clientY + Math.sin(a) * 26, born: now });
+  }
+  while (trail.length > CONFIG.reveal.trailMax) trail.shift();
+  document.body.classList.add('m-touched');
+}, { passive: true });
+
+// Resizing across the phone/desktop boundary changes the character resolution,
+// which means the grid has to be rebuilt — not just rescaled. (Rotating a phone
+// stays on the same side of the boundary, so that's a cheap relayout.)
+let imgReady = false;
+function relayoutPortrait() {
+  if (applyRes() && imgReady) buildGrid(img);
+  layout();
+}
+window.addEventListener('resize', relayoutPortrait);
+// A build swap can also arrive from the media-query listener alone (no resize),
+// so the switch calls this directly rather than trusting a resize to follow.
+window.__relayoutPortrait = relayoutPortrait;
 
 // ---- boot ----
 const img = new Image();
 img.crossOrigin = 'anonymous';
-img.onload = () => { buildGrid(img); layout(); cancelAnimationFrame(raf); loop(); };
+img.onload = () => {
+  applyRes(); buildGrid(img); layout(); cancelAnimationFrame(raf); loop();
+  imgReady = true;
+  // the mobile intro waits on this instead of a blind timer
+  window.__portraitReady = true;
+  window.dispatchEvent(new Event('portrait-ready'));
+};
 img.onerror = () => {
   document.querySelector('.portrait-stage').insertAdjacentHTML(
     'beforeend',
@@ -964,6 +1247,11 @@ img.src = CONFIG.src;
   };
 
   let W = 0, H = 0, dpr = 1;
+  // On a phone the "portrait -> node -> left divider line" narrative has nothing
+  // to point at (there is no left text column), and that divider is literally
+  // the vertical line that was cutting through the hero and every section below.
+  // Phones keep the orb only: no conduits, no divider, no outbound stream.
+  let phone = false;
   const node = { x: 0, y: 0, beatAcc: 0, flash: 0 };
   const line = { x: 0, y0: 0, y1: 0 };
   const IN = [], OUT = [];        // curved conduits (bezier tendrils)
@@ -991,7 +1279,7 @@ img.src = CONFIG.src;
   }
 
   function geometry() {
-    node.x = FLOW.node.xf * W; node.y = FLOW.node.yf * H;
+    node.x = (phone ? 0.5 : FLOW.node.xf) * W; node.y = FLOW.node.yf * H;
     line.x = FLOW.line.xf * W; line.y0 = FLOW.line.y0f * H; line.y1 = FLOW.line.y1f * H;
     IN.length = 0; OUT.length = 0;
     const n = FLOW.conduits;
@@ -1010,6 +1298,7 @@ img.src = CONFIG.src;
   }
 
   function size() {
+    phone = !!(window.__isPhone && window.__isPhone());
     dpr = Math.min(2, window.devicePixelRatio || 1);
     W = window.innerWidth; H = window.innerHeight;
     fcanvas.width = W * dpr; fcanvas.height = H * dpr;
@@ -1173,7 +1462,8 @@ img.src = CONFIG.src;
   function frame(now) {
     const dt = Math.min(0.05, (now - tPrev) / 1000); tPrev = now;
     // pause the flow render once the hero has scrolled away (it's invisible anyway)
-    if (window.scrollY > window.innerHeight * 1.4) { requestAnimationFrame(frame); return; }
+    if (window.scrollY > window.innerHeight * 1.4 ||
+        document.body.classList.contains('m-past')) { requestAnimationFrame(frame); return; }
     fctx.clearRect(0, 0, W, H);
     aRect = asciiEl ? asciiEl.getBoundingClientRect() : null;
 
@@ -1182,20 +1472,20 @@ img.src = CONFIG.src;
       node.beatAcc -= FLOW.node.beat;
       rings.push({ r: FLOW.node.coreR, a: 1 });
       node.flash = 0.55;                           // subtle ping, not a hard flash
-      spawn('out');                                // extra pulse of output on the beat
+      if (!phone) spawn('out');                    // extra pulse of output on the beat
     }
     node.flash = Math.max(0, node.flash - dt / 0.5);
 
     const C = window.__collapse || 0;                 // scroll-collapse progress 0..1
     const emitIn = FLOW.emitIn * (1 - 0.85 * C);       // pour glyphs in as it collapses
-    const maxP = FLOW.maxParticles + (C * 170 | 0);
+    const maxP = (phone ? 34 : FLOW.maxParticles) + (C * 170 | 0);
     accIn += dt;
     if (accIn >= emitIn && particles.length < maxP) { accIn = 0; spawn('in'); if (C > 0.3) spawn('in'); }
     accOut += dt;
-    if (accOut >= FLOW.emitOut && particles.length < maxP) { accOut = 0; spawn('out'); }
+    if (!phone && accOut >= FLOW.emitOut && particles.length < maxP) { accOut = 0; spawn('out'); }
 
     fctx.globalCompositeOperation = 'source-over';
-    drawConduits(IN); drawConduits(OUT); drawLineBase();
+    if (!phone) { drawConduits(IN); drawConduits(OUT); drawLineBase(); }
 
     fctx.globalCompositeOperation = 'lighter';     // additive glow on black
     fctx.font = `${FLOW.glyphSize}px "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace`;
@@ -1226,141 +1516,15 @@ img.src = CONFIG.src;
 
 <script>
 /* ============================================================
-   Scroll-collapse controller
-   As the user scrolls the first viewport, the hero text and the
-   ASCII portrait drift toward the central "beeping" node, shrink,
-   and fade — collapsing into it. The node holds, then the About
-   section rises up beneath. Purely scroll-driven (no libraries).
+   SHARED PAGE BEHAVIOUR — runs on BOTH builds.
+   Nothing in here is device-specific: section reveal entrances, Lenis smooth
+   scrolling, the scroll-linked word fill, the contact form.
+   It used to sit *after* the phone branch's `return` inside the hero
+   controller, so whichever build wasn't desktop lost all of it — no smooth
+   scroll, no reveals, no working contact form. Its own IIFE now, so no hero
+   branch can ever skip it again.
    ============================================================ */
 (function () {
-  const heroText = document.getElementById('heroText');
-  const stage    = document.getElementById('portraitStage');
-  const flow     = document.getElementById('flow');
-  const clamp  = (v, a, b) => Math.max(a, Math.min(b, v));
-
-  // ===== MOBILE hero: intro (orb + "Welcome" -> explode -> ASCII), then the
-  // heading + description fade UP over the portrait as the user scrolls. The
-  // whole desktop collapse below is skipped on phones. =====
-  if (window.matchMedia('(max-width: 700px)').matches) {
-    window.__collapse = 0;
-    document.body.classList.add('m-intro');                // orb + Welcome, ASCII hidden
-    setTimeout(() => {
-      document.body.classList.remove('m-intro');
-      document.body.classList.add('m-exploded', 'm-ready'); // ASCII explodes in, scroll arrow appears
-    }, 1900);
-    let ticking = false;
-    function onScroll() {
-      if (ticking) return; ticking = true;
-      requestAnimationFrame(() => {
-        ticking = false;
-        const vh = innerHeight, y = scrollY;
-        const pin  = clamp(y / (vh * 0.38), 0, 1);              // text fades UP into view
-        const pout = clamp((y - vh * 0.70) / (vh * 0.24), 0, 1); // then out before About rises
-        heroText.style.opacity = String(pin * (1 - pout));
-        heroText.style.transform = `translateX(-50%) translateY(${(1 - pin) * 26 - pout * 34}px)`;
-        if (document.body.classList.contains('m-ready'))
-          stage.style.opacity = String((1 - 0.45 * pin) * (1 - pout));  // portrait dims, then clears for About
-        document.body.classList.toggle('m-scrolled', y > 24);
-      });
-    }
-    addEventListener('scroll', onScroll, { passive: true });
-    addEventListener('resize', onScroll);
-    onScroll();
-    return;
-  }
-
-  const h1       = heroText.querySelector('.hero-h1');
-  const blocks   = [heroText.querySelector('.eyebrow'),
-                    heroText.querySelector('.hero-sub'),
-                    heroText.querySelector('.btn-row')].filter(Boolean);
-  const smooth = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
-  const rand   = (a, b) => a + Math.random() * (b - a);
-
-  // --- split the headline into per-character spans (the disintegration units) ---
-  const glyphs = [];
-  (function split(node, accent) {
-    [...node.childNodes].forEach((k) => {
-      if (k.nodeType === 3) {                       // text node -> one span per char
-        const frag = document.createDocumentFragment();
-        for (const ch of k.textContent) {
-          if (ch === ' ') { frag.appendChild(document.createTextNode(' ')); continue; }
-          const s = document.createElement('span');
-          s.className = 'glyph' + (accent ? ' accent' : '');
-          s.textContent = ch;
-          s._order = Math.random();                 // stagger order
-          s._sx = rand(-1, 1); s._sy = rand(-1.4, -0.2);   // scatter (bias upward)
-          s._rot = rand(-1, 1);
-          frag.appendChild(s); glyphs.push(s);
-        }
-        node.replaceChild(frag, k);
-      } else if (k.nodeType === 1 && k.nodeName !== 'BR') {
-        split(k, accent || (k.classList && k.classList.contains('accent')));
-      }
-    });
-  })(h1, false);
-
-  let base = null;
-  function measure() {
-    glyphs.forEach((g) => { g.style.transform = ''; g.style.opacity = ''; });
-    blocks.forEach((b) => { b.style.transform = ''; b.style.opacity = ''; b.style.filter = ''; });
-    stage.style.transform = '';
-    const nodeX = 0.46 * innerWidth, nodeY = 0.50 * innerHeight;   // matches FLOW.node
-    glyphs.forEach((g) => { const r = g.getBoundingClientRect(); g._cx = r.left + r.width / 2; g._cy = r.top + r.height / 2; });
-    blocks.forEach((b) => { const r = b.getBoundingClientRect(); b._cx = r.left + r.width / 2; b._cy = r.top + r.height / 2; });
-    const s = stage.getBoundingClientRect();
-    base = { nodeX, nodeY, stx: s.left + s.width / 2, sty: s.top + s.height / 2 };
-    apply();
-  }
-
-  function apply() {
-    if (!base) return;
-    const p = clamp(scrollY / (innerHeight * 0.9), 0, 1);
-    window.__collapse = p;                           // the flow layer reads this
-
-    // ---- headline: characters are SUCKED into the orb (converge + spiral + shrink) ----
-    for (const g of glyphs) {
-      const start = g._order * 0.22;                 // tight stagger; the letters go first
-      const raw = clamp((p - start) / 0.42, 0, 1);
-      const e = raw * raw * (3 - 2 * raw);
-      const acc = Math.pow(e, 1.5);                  // accelerate inward — a suction feel
-      const dx = base.nodeX - g._cx, dy = base.nodeY - g._cy;
-      const len = Math.hypot(dx, dy) || 1;
-      const px = -dy / len, py = dx / len;           // tangent → a little spiral as it draws in
-      const swirl = g._rot * 46 * Math.sin(e * Math.PI) * (1 - e);
-      g.style.transform = `translate(${dx * acc + px * swirl}px, ${dy * acc + py * swirl}px) rotate(${g._rot * 26 * e}deg) scale(${1 - 0.92 * e})`;
-      g.style.opacity = String(1 - smooth(0.55, 1.0, e));
-    }
-    // ---- supporting text: drawn in with the letters ----
-    blocks.forEach((b, k) => {
-      const raw = clamp((p - k * 0.04) / 0.4, 0, 1);
-      const e = raw * raw * (3 - 2 * raw);
-      const acc = Math.pow(e, 1.4);
-      const dx = base.nodeX - b._cx, dy = base.nodeY - b._cy;
-      b.style.transform = `translate(${dx * acc}px, ${dy * acc}px) scale(${1 - 0.85 * e})`;
-      b.style.opacity = String(1 - smooth(0.35, 0.9, e));
-      b.style.filter = `blur(${e * 3}px)`;
-    });
-    // ---- portrait: the ASCII canvas now disintegrates glyph-by-glyph toward
-    // the orb (see the portrait draw loop, driven by window.__collapse), so the
-    // stage itself is no longer moved or faded as one block. ----
-    stage.style.transform = '';
-    stage.style.opacity = '';
-    // the orb holds while it absorbs the hero, then recedes BEFORE the About
-    // section rises into the center — otherwise it shows through the transparent
-    // section and floats over the text (the janky overlap we're fixing).
-    flow.style.opacity = String(1 - smooth(0.48, 0.76, p));
-
-    const pe = p > 0.55 ? 'none' : '';
-    heroText.style.pointerEvents = pe;
-    stage.style.pointerEvents = pe;
-  }
-
-  addEventListener('scroll', apply, { passive: true });
-  addEventListener('resize', measure);
-  addEventListener('load', measure);
-  measure();
-  setTimeout(measure, 450);   // re-measure once fonts settle
-
   // --- scroll-reveal entrances (lamalama-style section beats) ---
   const targets = document.querySelectorAll('.section-title, .section > .kicker, .stat-card, .cards .card, .fun-grid > *, .cta-inner > *, .contact-head, .footer-brand, .footer-col');
   targets.forEach((t) => t.classList.add('reveal'));
@@ -1475,6 +1639,232 @@ img.src = CONFIG.src;
       if (btn) { btn.disabled = false; btn.textContent = original; }
     }
   });
+})();
+
+/* ============================================================
+   HERO CONTROLLER — holds BOTH hero builds; exactly one is mounted.
+
+     mountDesktopHero()  the locked desktop hero. Portrait pinned right,
+                         headline left, and scrolling the first viewport sucks
+                         the headline character-by-character into the orb.
+     mountPhoneHero()    the phone hero. Orb intro, centred portrait, drag/tap
+                         to reveal, headline fades up on scroll, then the whole
+                         fixed layer is hard-killed via body.m-past.
+
+   Each mount function returns its own teardown, so the page can swap builds
+   live when the viewport crosses the phone boundary (window narrowed/
+   maximised, phone rotated, or a first paint that reported a 0-width viewport
+   — see the BUILD SWITCH above). The old code chose once at parse time and
+   returned out of the desktop path forever; one wrong answer killed the
+   desktop hero for the whole session.
+   ============================================================ */
+(function () {
+  const heroText = document.getElementById('heroText');
+  const stage    = document.getElementById('portraitStage');
+  const flow     = document.getElementById('flow');
+  const clamp  = (v, a, b) => Math.max(a, Math.min(b, v));
+  const h1     = heroText.querySelector('.hero-h1');
+  // Kept verbatim so a build swap can hand the next build clean markup: the
+  // desktop build shreds this into one <span> per character, which the phone
+  // build must not inherit (per-char inline-blocks wrap mid-word once
+  // white-space goes back to normal).
+  const h1HTML = h1.innerHTML;
+
+  /* ---------------------------------------------------------------- DESKTOP */
+  function mountDesktopHero() {
+    h1.innerHTML = h1HTML;
+    const blocks   = [heroText.querySelector('.eyebrow'),
+                      heroText.querySelector('.hero-sub'),
+                      heroText.querySelector('.btn-row')].filter(Boolean);
+    const smooth = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
+    const rand   = (a, b) => a + Math.random() * (b - a);
+
+    // --- split the headline into per-character spans (the disintegration units) ---
+    const glyphs = [];
+    (function split(node, accent) {
+      [...node.childNodes].forEach((k) => {
+        if (k.nodeType === 3) {                       // text node -> one span per char
+          const frag = document.createDocumentFragment();
+          for (const ch of k.textContent) {
+            if (ch === ' ') { frag.appendChild(document.createTextNode(' ')); continue; }
+            const s = document.createElement('span');
+            s.className = 'glyph' + (accent ? ' accent' : '');
+            s.textContent = ch;
+            s._order = Math.random();                 // stagger order
+            s._sx = rand(-1, 1); s._sy = rand(-1.4, -0.2);   // scatter (bias upward)
+            s._rot = rand(-1, 1);
+            frag.appendChild(s); glyphs.push(s);
+          }
+          node.replaceChild(frag, k);
+        } else if (k.nodeType === 1 && k.nodeName !== 'BR') {
+          split(k, accent || (k.classList && k.classList.contains('accent')));
+        }
+      });
+    })(h1, false);
+
+    let base = null;
+    function measure() {
+      glyphs.forEach((g) => { g.style.transform = ''; g.style.opacity = ''; });
+      blocks.forEach((b) => { b.style.transform = ''; b.style.opacity = ''; b.style.filter = ''; });
+      stage.style.transform = '';
+      const nodeX = 0.46 * innerWidth, nodeY = 0.50 * innerHeight;   // matches FLOW.node
+      glyphs.forEach((g) => { const r = g.getBoundingClientRect(); g._cx = r.left + r.width / 2; g._cy = r.top + r.height / 2; });
+      blocks.forEach((b) => { const r = b.getBoundingClientRect(); b._cx = r.left + r.width / 2; b._cy = r.top + r.height / 2; });
+      const s = stage.getBoundingClientRect();
+      base = { nodeX, nodeY, stx: s.left + s.width / 2, sty: s.top + s.height / 2 };
+      apply();
+    }
+
+    function apply() {
+      if (!base) return;
+      const p = clamp(scrollY / (innerHeight * 0.9), 0, 1);
+      window.__collapse = p;                           // the flow layer reads this
+
+      // ---- headline: characters are SUCKED into the orb (converge + spiral + shrink) ----
+      for (const g of glyphs) {
+        const start = g._order * 0.22;                 // tight stagger; the letters go first
+        const raw = clamp((p - start) / 0.42, 0, 1);
+        const e = raw * raw * (3 - 2 * raw);
+        const acc = Math.pow(e, 1.5);                  // accelerate inward — a suction feel
+        const dx = base.nodeX - g._cx, dy = base.nodeY - g._cy;
+        const len = Math.hypot(dx, dy) || 1;
+        const px = -dy / len, py = dx / len;           // tangent → a little spiral as it draws in
+        const swirl = g._rot * 46 * Math.sin(e * Math.PI) * (1 - e);
+        g.style.transform = `translate(${dx * acc + px * swirl}px, ${dy * acc + py * swirl}px) rotate(${g._rot * 26 * e}deg) scale(${1 - 0.92 * e})`;
+        g.style.opacity = String(1 - smooth(0.55, 1.0, e));
+      }
+      // ---- supporting text: drawn in with the letters ----
+      blocks.forEach((b, k) => {
+        const raw = clamp((p - k * 0.04) / 0.4, 0, 1);
+        const e = raw * raw * (3 - 2 * raw);
+        const acc = Math.pow(e, 1.4);
+        const dx = base.nodeX - b._cx, dy = base.nodeY - b._cy;
+        b.style.transform = `translate(${dx * acc}px, ${dy * acc}px) scale(${1 - 0.85 * e})`;
+        b.style.opacity = String(1 - smooth(0.35, 0.9, e));
+        b.style.filter = `blur(${e * 3}px)`;
+      });
+      // ---- portrait: the ASCII canvas now disintegrates glyph-by-glyph toward
+      // the orb (see the portrait draw loop, driven by window.__collapse), so the
+      // stage itself is no longer moved or faded as one block. ----
+      stage.style.transform = '';
+      stage.style.opacity = '';
+      // the orb holds while it absorbs the hero, then recedes BEFORE the About
+      // section rises into the center — otherwise it shows through the transparent
+      // section and floats over the text (the janky overlap we're fixing).
+      flow.style.opacity = String(1 - smooth(0.48, 0.76, p));
+
+      const pe = p > 0.55 ? 'none' : '';
+      heroText.style.pointerEvents = pe;
+      stage.style.pointerEvents = pe;
+    }
+
+    addEventListener('scroll', apply, { passive: true });
+    addEventListener('resize', measure);
+    addEventListener('load', measure);
+    measure();
+    const settle = setTimeout(measure, 450);   // re-measure once fonts settle
+
+    return function teardownDesktop() {
+      removeEventListener('scroll', apply);
+      removeEventListener('resize', measure);
+      removeEventListener('load', measure);
+      clearTimeout(settle);
+      glyphs.forEach((g) => { g.style.transform = ''; g.style.opacity = ''; });
+      h1.innerHTML = h1HTML;
+      window.__collapse = 0;
+    };
+  }
+
+  /* ------------------------------------------------------------------ PHONE */
+  //   1. intro   orb pulses on black + "WELCOME"
+  //   2. reveal  portrait blooms in centred, "drag across to reveal" hint
+  //   3. touch   drag/tap paints the reveal (wired in the portrait script)
+  //   4. scroll  headline fades up over the portrait, then the entire fixed
+  //              hero layer is HARD-KILLED via body.m-past
+  //
+  // The intro ends on the portrait actually being ready rather than a blind
+  // timer, aborts instantly on any scroll or touch, and has a hard cap — a
+  // fixed "WELCOME" used to stay painted over the About section for anyone who
+  // scrolled inside the first two seconds.
+  function mountPhoneHero() {
+    window.__collapse = 0;                 // phones never run the suction collapse
+    const body = document.body;
+    body.classList.add('m-intro');
+
+    let done = false, hold = 0;
+    const t0 = performance.now();
+
+    function finish() {
+      if (done) return;
+      done = true;
+      clearTimeout(cap);
+      body.classList.remove('m-intro');
+      body.classList.add('m-exploded', 'm-ready');
+      onScroll();
+    }
+    function whenPortraitUp() {
+      // hold the intro for a minimum beat so it reads as a moment, not a flash
+      const wait = Math.max(0, 900 - (performance.now() - t0));
+      if (wait) hold = setTimeout(finish, wait); else finish();
+    }
+    const cap = setTimeout(finish, 2600);               // never hang on a slow image
+    addEventListener('scroll',      finish, { once: true, passive: true });
+    addEventListener('pointerdown', finish, { once: true, passive: true });
+    if (window.__portraitReady) whenPortraitUp();
+    else addEventListener('portrait-ready', whenPortraitUp, { once: true });
+
+    // Applied synchronously rather than coalesced into a requestAnimationFrame:
+    // it is half a dozen style writes, and a rAF gate here can latch its `ticking`
+    // flag if the frame never lands (backgrounded tab mid-load), which would kill
+    // the hero's scroll response for the rest of the session.
+    function onScroll() {
+      const vh = innerHeight, y = scrollY;
+      const pin  = clamp(y / (vh * 0.38), 0, 1);               // text fades UP into view
+      const pout = clamp((y - vh * 0.70) / (vh * 0.24), 0, 1); // then out before About rises
+      const vis  = pin * (1 - pout);
+      heroText.style.opacity = String(vis);
+      heroText.style.transform = `translateX(-50%) translateY(${(1 - pin) * 26 - pout * 34}px)`;
+      // the hero box is 90vw x 100dvh at z-index 3; while it is transparent it
+      // must not swallow taps meant for the portrait underneath it
+      body.classList.toggle('m-textin', vis > 0.02);
+      if (done) stage.style.opacity = String((1 - 0.45 * pin) * (1 - pout));
+      body.classList.toggle('m-scrolled', y > 24);
+      // past the hero: take the fixed canvases out of the page for good
+      body.classList.toggle('m-past', y > vh * 1.05);
+    }
+
+    addEventListener('scroll', onScroll, { passive: true });
+    addEventListener('resize', onScroll);
+    onScroll();
+
+    return function teardownPhone() {
+      clearTimeout(cap); clearTimeout(hold);
+      removeEventListener('scroll', finish);
+      removeEventListener('pointerdown', finish);
+      removeEventListener('portrait-ready', whenPortraitUp);
+      removeEventListener('scroll', onScroll);
+      removeEventListener('resize', onScroll);
+      body.classList.remove('m-intro', 'm-exploded', 'm-ready',
+                            'm-scrolled', 'm-touched', 'm-textin', 'm-past');
+    };
+  }
+
+  /* ------------------------------------------------------------------ SWAP */
+  let mounted = null, teardown = null;
+  function mount(build) {
+    if (build === mounted) return;
+    if (teardown) teardown();
+    // wipe every inline style the outgoing build wrote on the hero layers, so
+    // the incoming one starts from its own stylesheet rules
+    heroText.style.cssText = '';
+    stage.style.cssText = '';
+    flow.style.cssText = '';
+    mounted = build;
+    teardown = build === 'phone' ? mountPhoneHero() : mountDesktopHero();
+  }
+
+  mount(window.__build || 'desktop');
+  window.__onBuildChange(mount);
 })();
 </script>
 
@@ -1687,6 +2077,10 @@ img.src = CONFIG.src;
    ============================================================ */
 (function () {
   if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  // Touch devices have no cursor to trail, and the listener below already
+  // ignores non-mouse pointers — so on a phone this was allocating a
+  // full-viewport canvas and clearing it 60 times a second to draw nothing.
+  if (window.matchMedia && matchMedia('(pointer: coarse)').matches) return;
   const cv = document.getElementById('cursor');
   if (!cv) return;
   const cx = cv.getContext('2d');
