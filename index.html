@@ -873,6 +873,59 @@ addEventListener('load', syncBuild);
 if (phoneMQL.addEventListener) phoneMQL.addEventListener('change', syncBuild);
 else if (phoneMQL.addListener) phoneMQL.addListener(syncBuild);
 
+/* ============================================================
+   SAFE ANIMATION LOOPS + DIAGNOSTICS
+   ------------------------------------------------------------
+   Every animated layer here drove itself with
+
+       function frame(){ ...work...; requestAnimationFrame(frame); }
+
+   which has a vicious failure mode: if the work throws even once, the
+   exception propagates BEFORE requestAnimationFrame is reached and the loop is
+   dead for the rest of the session — permanently, and silently.
+
+   For the scroll layer that is catastrophic rather than cosmetic. Lenis owns
+   the wheel: it calls preventDefault() on every wheel event and moves the page
+   itself from its own rAF loop. Kill that loop and wheel input is swallowed
+   forever while the scrollbar still works natively — you can only scroll by
+   dragging the bar, and every scroll-driven animation freezes. That is exactly
+   what a Windows tester hit, and nothing in this file touches `wheel` except
+   Lenis, so nothing else can produce it.
+
+   Scheduling the next frame in `finally` makes a bad frame cost one frame
+   instead of the whole session, and the error is recorded on window.__errors
+   so a browser we cannot attach a debugger to can still tell us what broke.
+   ============================================================ */
+window.__errors = [];
+function noteError(where, e) {
+  const msg = where + ': ' + ((e && e.message) || e);
+  if (window.__errors.length < 25 && !window.__errors.includes(msg)) window.__errors.push(msg);
+}
+window.__rafLoop = function (name, fn) {
+  let stopped = false;
+  (function tick(t) {
+    if (stopped) return;
+    try { fn(t); }
+    catch (e) { noteError(name, e); }
+    finally { requestAnimationFrame(tick); }
+  })(performance.now());
+  return () => { stopped = true; };
+};
+window.__noteError = noteError;
+
+/* One line for anyone testing on a machine we cannot debug on: paste
+   __diag() in the console and send back what it prints. */
+window.__diag = () => ({
+  build: document.documentElement.getAttribute('data-build'),
+  viewport: [innerWidth, innerHeight],
+  dpr: window.devicePixelRatio,
+  lenis: window.__lenis ? 'active' : (window.Lenis ? 'disabled (fell back to native)' : 'never loaded'),
+  portrait: window.__portraitStats ? window.__portraitStats() : null,
+  scrollY: Math.round(scrollY),
+  scrollHeight: document.documentElement.scrollHeight,
+  errors: window.__errors,
+});
+
 /* Character resolution per device. 150 cols crammed into ~390 CSS px is
    illegible mush AND 22,500 fillText calls every frame on a phone battery.
    78 cols lands ~1:1 on device pixels and costs ~3.7x less. The reveal is
@@ -1094,7 +1147,6 @@ function draw(time) {
   }
 }
 
-let raf;
 let t0 = performance.now();
 
 /* ---------------------------------------------------------------------------
@@ -1126,7 +1178,7 @@ let frameNo = 0;
 window.__portraitStats = () => ({ drawCost: +drawCost.toFixed(1),
                                   stride: drawCost > BUDGET_MS ? Math.ceil(drawCost / BUDGET_MS) : 1 });
 
-function loop() {
+function loopBody() {
   const time = (performance.now() - t0) / 1000;
   // only pay for the (expensive) portrait render while the hero is on screen
   if (window.scrollY < window.innerHeight * 1.4 &&
@@ -1139,7 +1191,12 @@ function loop() {
       drawCost = drawCost ? drawCost * 0.85 + cost * 0.15 : cost;
     }
   }
-  raf = requestAnimationFrame(loop);
+}
+let loopStarted = false;
+function startLoop() {
+  if (loopStarted) return;
+  loopStarted = true;
+  window.__rafLoop('portrait', loopBody);
 }
 
 // ---- pointer wiring ----
@@ -1191,7 +1248,7 @@ window.__relayoutPortrait = relayoutPortrait;
 const img = new Image();
 img.crossOrigin = 'anonymous';
 img.onload = () => {
-  applyRes(); buildGrid(img); layout(); cancelAnimationFrame(raf); loop();
+  applyRes(); buildGrid(img); layout(); startLoop();
   imgReady = true;
   // the mobile intro waits on this instead of a blind timer
   window.__portraitReady = true;
@@ -1463,7 +1520,7 @@ img.src = CONFIG.src;
     const dt = Math.min(0.05, (now - tPrev) / 1000); tPrev = now;
     // pause the flow render once the hero has scrolled away (it's invisible anyway)
     if (window.scrollY > window.innerHeight * 1.4 ||
-        document.body.classList.contains('m-past')) { requestAnimationFrame(frame); return; }
+        document.body.classList.contains('m-past')) return;   // __rafLoop schedules the next frame
     fctx.clearRect(0, 0, W, H);
     aRect = asciiEl ? asciiEl.getBoundingClientRect() : null;
 
@@ -1505,12 +1562,11 @@ img.src = CONFIG.src;
     drawBlips(dt);
     fctx.globalCompositeOperation = 'source-over';
 
-    requestAnimationFrame(frame);
   }
 
   window.addEventListener('resize', size);
   size();
-  requestAnimationFrame(frame);
+  window.__rafLoop('flow', frame);
 })();
 </script>
 
@@ -1550,12 +1606,51 @@ img.src = CONFIG.src;
   if (window.Lenis && !location.search.includes('nolenis')) {
     const lenis = new Lenis({ lerp: 0.09, smoothWheel: true });
     window.__lenis = lenis;
-    (function raf(t) { lenis.raf(t); requestAnimationFrame(raf); })();
+    window.__rafLoop('lenis', (t) => lenis.raf(t));
+
+    /* WHEEL WATCHDOG.
+       Lenis takes ownership of the wheel — it preventDefault()s the event and
+       moves the page from its own frame loop. So anything that stops that loop
+       from applying scroll leaves the wheel completely dead while the scrollbar
+       keeps working, which is unusable and gives no clue what went wrong.
+       Momentum scrolling is a nice-to-have; being able to scroll at all is not.
+       If wheel input produces no movement while there is somewhere to move,
+       drop Lenis and let the browser scroll the page natively. */
+    // Two conditions have to hold together, which is what keeps this precise:
+    //   1. Lenis WANTS to move — its targetScroll has run away from the real
+    //      position. Lenis clamps targetScroll to the scrollable range, so at
+    //      the very top and the very bottom this difference is zero and the
+    //      watchdog stays silent. No edge-case arithmetic of our own.
+    //   2. The page is NOT moving — scrollY is identical to the last wheel.
+    //      During healthy smoothing targetScroll always leads scrollY (that IS
+    //      the smoothing), but scrollY advances every frame, so condition 2
+    //      fails and nothing trips.
+    // Only a Lenis that wants to scroll and cannot, for 400ms of active wheel
+    // input, is a broken one.
+    let stuckSince = 0, lastY = -1;
+    addEventListener('wheel', () => {
+      if (!window.__lenis) return;                       // already fell back
+      const y = scrollY;
+      const wantsToMove = Math.abs(lenis.targetScroll - y) > 4;
+      if (!wantsToMove || y !== lastY) { stuckSince = 0; lastY = y; return; }
+      if (!stuckSince) { stuckSince = performance.now(); return; }
+      if (performance.now() - stuckSince > 400) {
+        try { lenis.destroy(); } catch (err) { noteError('lenis.destroy', err); }
+        window.__lenis = null;
+        document.documentElement.classList.remove('lenis', 'lenis-smooth', 'lenis-scrolling');
+        noteError('lenis', 'wheel input produced no scrolling — fell back to native scrolling');
+      }
+    }, { passive: true });
+
     document.querySelectorAll('a[href^="#"]').forEach((a) => {
       a.addEventListener('click', (ev) => {
         const id = a.getAttribute('href'); if (id.length < 2) return;
         const el = document.querySelector(id); if (!el) return;
-        ev.preventDefault(); lenis.scrollTo(el, { offset: -80 });
+        ev.preventDefault();
+        // __lenis, not the captured `lenis` — the watchdog above may have
+        // dropped it, and a destroyed instance would silently do nothing.
+        if (window.__lenis) window.__lenis.scrollTo(el, { offset: -80 });
+        else el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     });
   }
@@ -1588,6 +1683,8 @@ img.src = CONFIG.src;
     });
     let ticking = false;
     function update() {
+      // clear the gate FIRST: if the body below throws, a `ticking` flag left
+      // stuck at true would silently kill the word fill for the whole session
       ticking = false;
       // Complete the fill as the paragraph reaches the upper-middle of the
       // viewport — so by the time the section is settled in view, it's fully
@@ -2160,9 +2257,8 @@ img.src = CONFIG.src;
       }
       cx.globalAlpha = 1;
     }
-    requestAnimationFrame(frame);
   }
-  requestAnimationFrame(frame);
+  window.__rafLoop('cursor-trail', frame);
 })();
 </script>
 </body>
