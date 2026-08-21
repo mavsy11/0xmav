@@ -109,7 +109,9 @@
     position: absolute; top: 100%; left: 0; right: 0;
     background: rgba(13,14,15,.55); backdrop-filter: blur(24px) saturate(140%); -webkit-backdrop-filter: blur(24px) saturate(140%);
     border: 1px solid rgba(255,255,255,.08); border-top: 0;
-    border-radius: 0 0 10px 10px; overflow: hidden;
+    /* same reason as .portrait-stage: collapsed to max-height 0 with ~311px of
+       menu inside, `hidden` would make it a scrollable wheel target */
+    border-radius: 0 0 10px 10px; overflow: hidden; overflow: clip;
     max-height: 0; opacity: 0; pointer-events: none;
     transition: max-height .38s cubic-bezier(.4,0,.2,1), opacity .3s cubic-bezier(.4,0,.2,1);
     box-shadow: 0 24px 50px rgba(0,0,0,.65);
@@ -167,7 +169,20 @@
   .portrait-stage {
     position: fixed; top: 0; right: 0; bottom: 0; width: 66vw;
     display: flex; align-items: center; justify-content: flex-end;
-    overflow: hidden; z-index: 1; transform-origin: center; will-change: transform, opacity;
+    /* `clip`, NOT `hidden`. Identical clipping, one critical difference:
+       `hidden` makes the element a SCROLL CONTAINER, and this one has real
+       scrollable overflow — the portrait is pushed 5% off the right edge
+       (CONFIG.bleedRight), which leaves ~44px of scrollable width. A fixed,
+       scrollable box covering the right two thirds of the hero is a wheel
+       target: the browser scrolls the nearest scroll container under the
+       cursor, so wheeling over the portrait tried to scroll THIS, not the
+       page. Whether it then chains to the document is browser-dependent —
+       macOS chained, Windows did not, which is why the hero could not be
+       scrolled there. `clip` clips without ever becoming scrollable, so the
+       wheel always reaches the page. `hidden` first as a fallback for
+       browsers without `clip` (Safari < 16). */
+    overflow: hidden; overflow: clip;
+    z-index: 1; transform-origin: center; will-change: transform, opacity;
   }
   #ascii {
     display: block; image-rendering: pixelated; cursor: default;
@@ -769,7 +784,13 @@
     <div class="footer-bottom">© 2026 Maverick. Made with curiosity.</div>
   </footer>
 
-<script src="https://unpkg.com/lenis@1.1.14/dist/lenis.min.js"></script>
+<!-- Lenis 1.1.14, self-hosted on purpose. As a blocking <script> from a public
+     CDN this was a single point of failure for the whole page: any network that
+     cannot reach unpkg (corporate proxy, ad/CDN blocker, flaky link) stalls
+     parsing of every inline script below it, and if it fails outright the page
+     silently loses smooth scrolling. 13KB is not worth a third-party dependency
+     in the critical path. -->
+<script src="lenis.min.js"></script>
 <script>
 /* ============================================================
    Interactive ASCII portrait
