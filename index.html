@@ -1899,6 +1899,28 @@ img.src = CONFIG.src;
     let pTarget = 0, pNow = 0, lastFrameT = 0;
     const LAMBDA = 25;                     // damping rate, 1/s
 
+    /* MINIMUM WATCH TIME.
+       Damping fixed how the motion is drawn; it did not fix how long it lasts.
+       The collapse spans a fixed SCROLL DISTANCE (0.9 x viewport, ~810px), and
+       how quickly you cross that distance is a property of the input device:
+
+         Mac trackpad   a deliberate two-finger drag covers it over a second or
+                        more, so the absorb plays out and can be watched.
+         Windows wheel  one notch is ~100px and a normal flick is 3-5 notches.
+                        Two flicks and the whole 810px is gone — the entire
+                        effect is over in a couple of hundred milliseconds.
+
+       So the scroll distance is not the thing to change (that would slow the Mac
+       down too, and the Mac is right). What is missing is a floor on DURATION:
+       cap how fast p is allowed to travel, in p-units per second. Dump 810px in
+       one flick and the absorb still takes its time; scroll gently and you are
+       already below the cap and nothing is altered.
+
+       1.35/s => the full collapse can never play faster than ~740ms, however
+       violently the page is scrolled. Scaled by dt, so it holds at any frame
+       rate. */
+    const MAX_RATE = 1.35;                 // p units per second
+
     function readTarget() {
       pTarget = clamp(scrollY / (innerHeight * 0.9), 0, 1);
     }
@@ -1923,7 +1945,11 @@ img.src = CONFIG.src;
         if (pNow !== pTarget) { pNow = pTarget; applyAt(pNow); }
         return;
       }
-      pNow += gap * (1 - Math.exp(-LAMBDA * dt));
+      let step = gap * (1 - Math.exp(-LAMBDA * dt));
+      const maxStep = MAX_RATE * dt;       // the duration floor
+      if (step >  maxStep) step =  maxStep;
+      if (step < -maxStep) step = -maxStep;
+      pNow += step;
       applyAt(pNow);
     }
 
