@@ -1897,7 +1897,7 @@ img.src = CONFIG.src;
        already smooth, is essentially unaffected.
        ------------------------------------------------------------------ */
     let pTarget = 0, pNow = 0, lastFrameT = 0;
-    const LAMBDA = 25;                     // damping rate, 1/s
+    const LAMBDA = 18;                     // damping rate, 1/s — softer landing
 
     /* MINIMUM WATCH TIME.
        Damping fixed how the motion is drawn; it did not fix how long it lasts.
@@ -1916,10 +1916,23 @@ img.src = CONFIG.src;
        one flick and the absorb still takes its time; scroll gently and you are
        already below the cap and nothing is altered.
 
-       1.35/s => the full collapse can never play faster than ~740ms, however
+       The usable window for this number is bounded at both ends by how the Mac
+       actually scrolls, measured here:
+
+         fast trackpad flick     ~1017ms  => a rate of about 0.96/s
+         deliberate slow drag    ~2467ms  => a rate of about 0.39/s
+
+       Anything above ~1.0 leaves even the fastest Mac flick untouched; going
+       below ~0.4 would start slowing deliberate Mac scrolling, which is the one
+       thing that must not change. 0.9 sits inside that window: it stretches a
+       wheel flick a long way while only grazing the very fastest trackpad flick
+       and leaving considered scrolling completely alone.
+
+       0.9/s => the full collapse can never play faster than ~1100ms, however
        violently the page is scrolled. Scaled by dt, so it holds at any frame
-       rate. */
-    const MAX_RATE = 1.35;                 // p units per second
+       rate — and because it bounds per-frame movement it is also what limits
+       how far the absorb can jump in one frame. */
+    const MAX_RATE = 0.9;                  // p units per second
 
     function readTarget() {
       pTarget = clamp(scrollY / (innerHeight * 0.9), 0, 1);
