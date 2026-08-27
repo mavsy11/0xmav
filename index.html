@@ -244,12 +244,10 @@
     border: 1px solid var(--line); border-radius: 10px; padding: 30px 30px 32px;
     transition: transform .25s, box-shadow .25s, border-color .25s;
   }
-  .card > .card-ic, .card h3, .card p { position: relative; z-index: 1; }
+  .card h3, .card p { position: relative; z-index: 1; }
   .card:hover { transform: translateY(-8px) scale(1.035); border-color: rgba(255,255,255,.4); box-shadow: 0 34px 80px rgba(0,0,0,.62), 0 0 0 1px rgba(255,255,255,.06); z-index: 2; }
   .card:hover h3 { text-shadow: 0 0 22px rgba(255,255,255,.28); }
-  .card:hover .card-ic { box-shadow: 0 0 22px rgba(255,255,255,.6); transform: rotate(45deg) scale(1.18); }
-  .card-ic { width: 13px; height: 13px; background: var(--accent); border-radius: 3px; transform: rotate(45deg); box-shadow: 0 0 14px rgba(255,255,255,.3); margin-bottom: 20px; transition: transform .25s, box-shadow .25s; }
-  .card h3 { font-family: var(--display); font-weight: 800; font-size: 1.6rem; color: #fff; margin-bottom: 14px; transition: text-shadow .25s; }
+  .card h3 { font-family: var(--display); font-weight: 800; font-size: 1.6rem; color: #fff; text-align: center; margin-bottom: 14px; transition: text-shadow .25s; }
   .card p { color: #d7d5d2; font-size: 15.5px; line-height: 1.68; }
 
   /* ---- invite band ---- */
@@ -544,7 +542,6 @@
     .card:hover, .stat-card:hover, .fun-card:hover, .stat-card .stat:hover,
     .btn:hover, .btn-primary:hover, .btn-ghost:hover, .btn-solid:hover,
     .nav-cta-solid:hover { transform: none; }
-    .card:hover .card-ic { transform: rotate(45deg); box-shadow: 0 0 14px rgba(255,255,255,.3); }
     .card:hover h3, .stat-card .stat:hover .stat-num { text-shadow: none; }
     .nav-menu-item:hover { padding-left: 20px; }
 
@@ -652,37 +649,31 @@
       <div class="cards">
         <div class="card">
           <canvas class="card-fx" aria-hidden="true"></canvas>
-          <div class="card-ic"></div>
           <h3>Growth &amp; Systems</h3>
           <p>I like designing the whole system from the start, how people first hear about something and how they end up sticking around. Positioning, funnels, go-to-market for launches, and the unglamorous plumbing that makes growth repeatable.</p>
         </div>
         <div class="card">
           <canvas class="card-fx" aria-hidden="true"></canvas>
-          <div class="card-ic"></div>
           <h3>Creators &amp; KOLs</h3>
           <p>I enjoy working with creators as real partners, not one-off posts. Finding the right voices for the right projects and audiences, building genuine relationships, and letting them tell the story their own way.</p>
         </div>
         <div class="card">
           <canvas class="card-fx" aria-hidden="true"></canvas>
-          <div class="card-ic"></div>
           <h3>Partnerships</h3>
           <p>Some of the best growth comes from the right collaboration. I've sourced and structured ecosystem partnerships and co-marketing deals. Connecting the right teams in ways that actually make sense for everyone.</p>
         </div>
         <div class="card">
           <canvas class="card-fx" aria-hidden="true"></canvas>
-          <div class="card-ic"></div>
           <h3>AI &amp; Automation</h3>
           <p>I'm fascinated by how AI is changing the work, scaling content, personalizing the way we reach people, and quietly taking the busywork off everyone's plate boosting our creativity.</p>
         </div>
         <div class="card">
           <canvas class="card-fx" aria-hidden="true"></canvas>
-          <div class="card-ic"></div>
           <h3>Story &amp; Narrative</h3>
           <p>I care a lot about story. Positioning, messaging, and the narrative that makes people actually care about what you're building instead of scrolling past it.</p>
         </div>
         <div class="card">
           <canvas class="card-fx" aria-hidden="true"></canvas>
-          <div class="card-ic"></div>
           <h3>Community</h3>
           <p>I've built and grown communities from a cold start. Onboarding, engagement, retention, the human stuff that turns a follower count into a real place people want to be.</p>
         </div>
