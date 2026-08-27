@@ -427,14 +427,21 @@
   @media (max-width: 700px), (max-height: 500px) and (orientation: landscape) and (max-width: 932px) {
 
     /* ---------- stage ---------- */
+    /* svh, NOT dvh, on every layer of the hero.
+       dvh tracks the browser chrome, so on a phone these boxes resize on every
+       scroll as the URL bar collapses and expands — the portrait re-centres and
+       re-fits, the headline re-anchors, and .hero-spacer changes the document's
+       height by over 100px, which shoves the sections below around while the
+       reader is scrolling toward them. svh is the viewport at its SMALLEST, so
+       it is a constant: nothing is ever cut off, and nothing moves. */
     .portrait-stage {
       left: 0; right: 0; width: 100vw; justify-content: center; opacity: 1;
-      height: 100vh; height: 100dvh;
+      height: 100vh; height: 100svh;
       transition: opacity .5s ease, transform .8s cubic-bezier(.16,.8,.3,1);
       touch-action: pan-y;          /* vertical = scroll, horizontal = reveal */
     }
     #ascii { -webkit-mask-image: none; mask-image: none; touch-action: pan-y; }
-    #flow  { height: 100vh; height: 100dvh; }
+    #flow  { height: 100vh; height: 100svh; }
     #cursor { display: none; }      /* mouse-only halftone trail; never on touch */
 
     /* THE ghost fix. Past the hero, kill the fixed canvases outright —
@@ -448,7 +455,7 @@
     body.m-past .m-scroll { visibility: hidden; opacity: 0 !important; }
 
     /* extra scroll room so the hero sequence plays before About rises over it */
-    .hero-spacer { height: 185vh; height: 185dvh; }
+    .hero-spacer { height: 185vh; height: 185svh; }
 
     /* ---------- hero text ---------- */
     /* pointer-events:none matters: this box is 90vw x 100vh at z-index 3, so
@@ -456,12 +463,20 @@
        (and its buttons were tappable while fully transparent). */
     .hero-text {
       width: 90vw; left: 50%; transform: translateX(-50%);
-      height: 100vh; height: 100dvh;
+      height: 100vh; height: 100svh;
       align-items: center; text-align: center; justify-content: flex-end;
       gap: 16px; padding: 0 0 calc(13vh + env(safe-area-inset-bottom));
       opacity: 0; z-index: 3; pointer-events: none;
     }
-    body.m-textin .hero-text { pointer-events: auto; }
+    /* Only the BUTTONS come back, never the box. Re-enabling the whole
+       .hero-text turned a 90vw x 100svh pane at z-index 3 back into a touch
+       target covering the portrait, so from the first few pixels of scroll
+       onward — which is when m-textin lands — drag-to-reveal was dead
+       everywhere the headline sits, and dragging there selected text instead.
+       The reveal now works across the whole figure. */
+    body.m-textin .hero-text .btn { pointer-events: auto; }
+    /* and a horizontal drag over the copy is a reveal gesture, not a selection */
+    .hero-text { -webkit-user-select: none; user-select: none; }
     /* The headline lands on the portrait's busiest region. A bottom-up scrim,
        full-bleed past the 90vw text column and fading with it, buys the copy
        enough contrast without hiding the figure. z-index -1 keeps it inside the
@@ -559,7 +574,7 @@
     .hero-text { padding-bottom: calc(6vh + env(safe-area-inset-bottom)); gap: 10px; }
     .hero-h1 { font-size: 2rem; }
     .hero-sub { font-size: .9rem; max-width: 46ch; }
-    .hero-spacer { height: 220vh; height: 220dvh; }
+    .hero-spacer { height: 220vh; height: 220svh; }
     .m-hint { display: none; }        /* no room for it under a 390px-tall hero */
     .section { padding: 64px 22px; }
   }
@@ -866,6 +881,43 @@ function isPhone() {
 }
 window.__isPhone = isPhone;
 
+/* ============================================================
+   STABLE VIEWPORT HEIGHT
+   ------------------------------------------------------------
+   On a phone, window.innerHeight is not a constant. Scrolling collapses and
+   expands the browser's own chrome, which fires `resize` and moves that number
+   by 60-100px, over and over, WHILE the reader is mid-gesture. Everything
+   sized off it then re-lays-out under them: the portrait re-fits, the flow
+   canvas reallocates its backing store, and the hero's scroll thresholds
+   (0.38vh, 1.05vh) slide out from under the very scroll position they are
+   being compared against.
+
+   The hero's CSS is in svh — the viewport at its smallest, which by definition
+   does NOT move when the chrome retracts. So rather than guess at a stable
+   number, ask the stylesheet for the one it is already using: .portrait-stage
+   is the full-height hero layer, so its own box IS 100svh. Reading it means JS
+   and CSS cannot drift apart, in any browser, whatever the chrome is doing —
+   and where svh is unsupported the `100vh` fallback is stable there too.
+
+   Measured once per resize, never per scroll.
+
+   Desktop keeps live innerHeight: nothing there comes and goes on scroll, and
+   a window dragged taller should relayout immediately.
+   ============================================================ */
+let vhStable = window.innerHeight || 800;
+function syncVH() {
+  if (!isPhone()) { vhStable = window.innerHeight || vhStable; return; }
+  const stage = document.querySelector('.portrait-stage');
+  const h = stage ? stage.getBoundingClientRect().height : 0;
+  vhStable = h || window.innerHeight || vhStable;
+}
+// Registered before every other resize listener, so the rest of the page reads
+// an already-updated value rather than last frame's.
+addEventListener('resize', syncVH);
+addEventListener('orientationchange', syncVH);
+syncVH();
+window.__vh = () => (isPhone() ? vhStable : (window.innerHeight || vhStable));
+
 const buildSubs = [];
 let currentBuild = null;
 function syncBuild() {
@@ -1015,21 +1067,30 @@ function layout() {
   cell = CONFIG.fontSize;
   canvas.width = gridCols * cell;
   canvas.height = gridRows * cell;
+  /* Fit to .portrait-stage's OWN box, not to window.innerHeight. The stage is
+     the element the canvas has to sit inside, its height comes from the
+     stylesheet, and on a phone that is a stable unit while innerHeight is not
+     (see STABLE VIEWPORT HEIGHT above). Reading the box is also exact: there is
+     no viewport unit for JS to guess at and get subtly wrong. */
+  const stageBox = canvas.parentElement ? canvas.parentElement.getBoundingClientRect() : null;
+  const boxW = (stageBox && stageBox.width)  || window.innerWidth;
+  const boxH = (stageBox && stageBox.height) || (window.__vh ? window.__vh() : window.innerHeight);
   if (isPhone()) {
     // Phones: centre the whole figure and fit it to whichever axis runs out
     // first — width in portrait, height in landscape (the old width-only fit
     // pushed the portrait off both ends of a rotated phone).
     // leave more headroom on a short (landscape) viewport so the nav on top and
     // the scroll cue at the bottom aren't sitting on the figure
-    const vFit = window.innerHeight < 520 ? 0.76 : 0.92;
-    const scale = Math.min((window.innerWidth * 1.04) / canvas.width,
-                           (window.innerHeight * vFit) / canvas.height);
+    const vFit = boxH < 520 ? 0.76 : 0.92;
+    const scale = Math.min((boxW * 1.04) / canvas.width,
+                           (boxH * vFit) / canvas.height);
     canvas.style.width = Math.round(canvas.width * scale) + 'px';
     canvas.style.height = Math.round(canvas.height * scale) + 'px';
     canvas.style.transform = 'none';
   } else {
     // Desktop: fill the viewport height, then push off the right edge.
-    const scale = (window.innerHeight * CONFIG.fillHeight) / canvas.height;
+    // (.portrait-stage is top:0/bottom:0 there, so boxH IS the viewport height.)
+    const scale = (boxH * CONFIG.fillHeight) / canvas.height;
     canvas.style.width = Math.round(canvas.width * scale) + 'px';
     canvas.style.height = Math.round(canvas.height * scale) + 'px';
     canvas.style.transform = `translateX(${CONFIG.bleedRight * 100}%)`;
@@ -1687,7 +1748,13 @@ img.src = CONFIG.src;
     flowVisible = true; fcanvas.style.visibility = '';
     phone = !!(window.__isPhone && window.__isPhone());
     dpr = Math.min(2, window.devicePixelRatio || 1);
-    W = window.innerWidth; H = window.innerHeight;
+    // The element's own box, not innerHeight: on a phone innerHeight moves with
+    // the browser chrome on every scroll, and reallocating this backing store
+    // mid-gesture is both wasted work and a visible hitch. #flow's CSS height
+    // is a stable unit, so reading it keeps canvas and element exactly in step.
+    const box = fcanvas.getBoundingClientRect();
+    W = box.width || window.innerWidth;
+    H = box.height || (window.__vh ? window.__vh() : window.innerHeight);
     fcanvas.width = W * dpr; fcanvas.height = H * dpr;
     fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     geometry();
@@ -1950,8 +2017,17 @@ img.src = CONFIG.src;
   }, { threshold: 0.14, rootMargin: '0px 0px -6% 0px' });
   targets.forEach((t) => io.observe(t));
 
-  // --- smooth momentum scroll (Lenis) for the lamalama feel; graceful fallback ---
-  if (window.Lenis && !location.search.includes('nolenis')) {
+  /* --- smooth momentum scroll (Lenis) for the lamalama feel; graceful fallback ---
+     Skipped entirely on a touch-only device. Lenis runs with syncTouch off, so
+     it never takes part in a finger scroll — the OS does that, better. What it
+     did do there was run a rAF loop all page long and, because native scrolling
+     leaves its animatedScroll stale by definition, fire the resync below on
+     EVERY frame of every swipe. All cost, no smoothing.
+
+     `hover: none` is what separates a phone from a touchscreen laptop: the
+     laptop has a wheel and a trackpad, so it keeps the smoothing. */
+  const touchOnly = matchMedia('(pointer: coarse) and (hover: none)').matches;
+  if (window.Lenis && !location.search.includes('nolenis') && !touchOnly) {
     const lenis = new Lenis({ lerp: 0.09, smoothWheel: true });
     window.__lenis = lenis;
 
@@ -2028,18 +2104,23 @@ img.src = CONFIG.src;
       }
     }, { passive: true });
 
-    document.querySelectorAll('a[href^="#"]').forEach((a) => {
-      a.addEventListener('click', (ev) => {
-        const id = a.getAttribute('href'); if (id.length < 2) return;
-        const el = document.querySelector(id); if (!el) return;
-        ev.preventDefault();
-        // __lenis, not the captured `lenis` — the watchdog above may have
-        // dropped it, and a destroyed instance would silently do nothing.
-        if (window.__lenis) window.__lenis.scrollTo(el, { offset: -80 });
-        else el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-    });
   }
+
+  /* In-page links. Deliberately OUTSIDE the Lenis branch: html has
+     scroll-behavior:auto, so without this every nav link on a phone — where
+     Lenis is skipped — would hard-jump instead of scrolling. It reads
+     window.__lenis at click time rather than closing over the instance,
+     because the watchdog above may have dropped it and a destroyed instance
+     would silently do nothing. */
+  document.querySelectorAll('a[href^="#"]').forEach((a) => {
+    a.addEventListener('click', (ev) => {
+      const id = a.getAttribute('href'); if (id.length < 2) return;
+      const el = document.querySelector(id); if (!el) return;
+      ev.preventDefault();
+      if (window.__lenis) window.__lenis.scrollTo(el, { offset: -80 });
+      else el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
 
   // --- scroll-linked word fill: body copy under a title starts dim and lights
   // up word-by-word from start to finish as the reader scrolls it into view ---
@@ -2427,13 +2508,16 @@ img.src = CONFIG.src;
     // flag if the frame never lands (backgrounded tab mid-load), which would kill
     // the hero's scroll response for the rest of the session.
     function onScroll() {
-      const vh = innerHeight, y = scrollY;
+      // __vh(), not innerHeight: the thresholds below are compared against a
+      // scroll position, and a threshold that slides while the reader scrolls
+      // makes the hero fade in and out at a different point every gesture.
+      const vh = (window.__vh ? window.__vh() : innerHeight), y = scrollY;
       const pin  = clamp(y / (vh * 0.38), 0, 1);               // text fades UP into view
       const pout = clamp((y - vh * 0.70) / (vh * 0.24), 0, 1); // then out before About rises
       const vis  = pin * (1 - pout);
       heroText.style.opacity = String(vis);
       heroText.style.transform = `translateX(-50%) translateY(${(1 - pin) * 26 - pout * 34}px)`;
-      // the hero box is 90vw x 100dvh at z-index 3; while it is transparent it
+      // the hero box is 90vw x 100svh at z-index 3; while it is transparent it
       // must not swallow taps meant for the portrait underneath it
       body.classList.toggle('m-textin', vis > 0.02);
       if (done) stage.style.opacity = String((1 - 0.45 * pin) * (1 - pout));
