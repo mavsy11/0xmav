@@ -979,12 +979,15 @@ let cell = CONFIG.fontSize;
 const pointer = { x: -9999, y: -9999, active: false };
 const trail = [];   // recent cursor samples { x, y, born(ms) } — newest last
 
-// Map 0..255 brightness -> a glyph from the ramp (dark pixel = dense glyph)
-function charForBrightness(b) {
+// Map 0..255 brightness -> a glyph from the ramp (dark pixel = dense glyph).
+// The INDEX is what the cell stores: it is also the atlas column, so the base
+// render never has to look a character back up.
+function idxForBrightness(b) {
   const ramp = CONFIG.ramp;
   const idx = Math.floor((1 - b / 255) * (ramp.length - 1));
-  return ramp[Math.min(ramp.length - 1, Math.max(0, idx))];
+  return Math.min(ramp.length - 1, Math.max(0, idx));
 }
+function charForBrightness(b) { return CONFIG.ramp[idxForBrightness(b)]; }
 
 function buildGrid(img) {
   // Optional source crop (fractions of the image) to zoom into the head
@@ -1011,7 +1014,8 @@ function buildGrid(img) {
       const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
       // Perceptual luminance
       const bright = a === 0 ? 255 : 0.299 * r + 0.587 * g + 0.114 * b;
-      grid[y * gridCols + x] = { ch: charForBrightness(bright), r, g, b, a };
+      const ci = idxForBrightness(bright);
+      grid[y * gridCols + x] = { ch: CONFIG.ramp[ci], ci, r, g, b, a };
     }
   }
 }
@@ -1041,53 +1045,206 @@ function layout() {
   }
   ctx.font = `${cell}px "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace`;
   ctx.textBaseline = 'top';
+  if (atlasCell !== cell) buildAtlas();
+  readBg();
+  baseTime = -1;            // the cached still portrait was drawn at the old scale
 }
 
-function draw(time) {
-  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg') || '#000';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+/* ---------------------------------------------------------------------------
+   GLYPH ATLAS — the single biggest per-frame cost on a slow machine.
 
-  const A = CONFIG.anim;
-  const rev = CONFIG.reveal;
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const Rc = rev.radius * scaleX;            // reveal radius in canvas px
-  const Rc2 = Rc * Rc;
-  const persistMs = rev.trailPersist * 1000;
-  const nowMs = performance.now();
+   The base pass paints one glyph per cell, 150x150 of them, and it did that
+   with fillText plus a freshly built `rgb(v,v,v)` string per cell: 22,500
+   colour-string parses and 22,500 text rasterisations, every frame. Chrome's
+   Canvas2D text path on Windows is several times slower than the Mac's, which
+   is the whole reason the Mac stayed inside the frame budget and Windows did
+   not — the portrait dropped to a stride, so the cursor reveal and the shimmer
+   ran at a fraction of the frame rate and the hero felt coarse.
 
-  // scroll-collapse progress (0..1) + the orb's position in canvas pixels, so
-  // each glyph can be drawn flying toward the beeping orb individually.
-  const C = window.__collapse || 0;
-  const orbX = (0.46 * window.innerWidth  - rect.left) * scaleX;
-  const orbY = (0.50 * window.innerHeight - rect.top ) * scaleX;
+   But there is nothing to rasterise per frame: every glyph is one of the ~70
+   ramp characters at one of a handful of grey levels. Pre-render that whole
+   product ONCE into an offscreen sheet and the per-cell work becomes a single
+   integer-aligned drawImage with no canvas state changes at all.
 
-  // Prune expired trail points, then build the active set in canvas px.
-  while (trail.length && nowMs - trail[0].born > persistMs) trail.shift();
-  const pts = [];
-  let bMinX = Infinity, bMinY = Infinity, bMaxX = -Infinity, bMaxY = -Infinity;
-  for (let i = 0; i < trail.length; i++) {
-    const age = nowMs - trail[i].born;
-    const s = 1 - age / persistMs;           // 1 fresh -> 0 old (fading tail)
-    const tx = (trail[i].x - rect.left) * scaleX;
-    const ty = (trail[i].y - rect.top) * scaleX;
-    pts.push(tx, ty, s);                      // flat array: [x, y, strength, ...]
-    if (tx < bMinX) bMinX = tx; if (tx > bMaxX) bMaxX = tx;
-    if (ty < bMinY) bMinY = ty; if (ty > bMaxY) bMaxY = ty;
+   The reveal path (full colour, sub-pixel displacement, live scramble) still
+   goes through fillText — it is only the cells under the cursor, and it is the
+   one place the exact original look matters most.
+   --------------------------------------------------------------------------- */
+const ATLAS_LEVELS = 32;      // grey steps. The shimmer is +/-14 of 255, so 8 per step is invisible.
+let atlas = null, atlasCell = 0, TS = 0, PAD = 0;
+
+/* The sheet is rasterised ON THE LIVE CANVAS and read back, rather than on an
+   offscreen one, because Chrome does not antialias text the same way on both.
+
+   A canvas in the document is GPU-accelerated; a detached one is not, and the
+   software rasteriser applies a gamma/stem-darkening pass the GPU one does
+   not. Measured on the same glyph, same font, same size, same colour: 794
+   units of coverage on this canvas, 998 on a detached one — 26% bolder. An
+   atlas built the obvious way therefore thickens the entire portrait, which is
+   the one thing this change must not do.
+
+   Painting into the canvas we are about to draw the portrait on guarantees the
+   same rasteriser, and the coverage comes back out of it exactly: text is
+   composited as `level*a + dst*(1-a)`, so drawn on pure black a pixel IS
+   level*a, and a/level recovers the alpha. A tile carrying (level, a) then
+   composites to precisely the pixels the original fillText produced.
+
+   Runs once per character resolution (so: once, and again only if the phone
+   and desktop builds swap), and the caller repaints the canvas straight after.
+   ------------------------------------------------------------------------- */
+function buildAtlas() {
+  TS = cell * 2;                        // tile: the glyph plus margin for its descender
+  PAD = cell >> 1;
+  const n = CONFIG.ramp.length;
+  atlas = document.createElement('canvas');
+  atlas.width = n * TS;
+  atlas.height = ATLAS_LEVELS * TS;
+  const actx = atlas.getContext('2d');
+  const sheet = actx.createImageData(atlas.width, atlas.height);
+  const sd = sheet.data, sw = atlas.width;
+
+  // How many tiles fit on the canvas at once — the whole sheet in one pass at
+  // desktop resolution, two at phone resolution.
+  const cols = Math.max(1, Math.floor(canvas.width / TS));
+  const rows = Math.max(1, Math.floor(canvas.height / TS));
+  const per = cols * rows;
+  const total = n * ATLAS_LEVELS;
+
+  const savedFont = ctx.font;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.font = `${cell}px "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+
+  for (let first = 0; first < total; first += per) {
+    const batch = Math.min(per, total - first);
+    const bandRows = Math.ceil(batch / cols);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, cols * TS, bandRows * TS);
+    for (let k = 0; k < batch; k++) {
+      const job = first + k;
+      const v = ((job / n) | 0) * 8 + 4;             // grey level
+      ctx.fillStyle = `rgb(${v},${v},${v})`;
+      ctx.fillText(CONFIG.ramp[job % n], (k % cols) * TS + PAD, ((k / cols) | 0) * TS + PAD);
+    }
+    const im = ctx.getImageData(0, 0, cols * TS, bandRows * TS);
+    const d = im.data, iw = cols * TS;
+    for (let k = 0; k < batch; k++) {
+      const job = first + k;
+      const v = ((job / n) | 0) * 8 + 4;
+      const sx = (k % cols) * TS, sy = ((k / cols) | 0) * TS;   // where it landed on the canvas
+      const dx = (job % n) * TS, dy = ((job / n) | 0) * TS;     // where it belongs in the sheet
+      for (let ty = 0; ty < TS; ty++) {
+        let si = ((sy + ty) * iw + sx) * 4;
+        let di = ((dy + ty) * sw + dx) * 4;
+        for (let tx = 0; tx < TS; tx++, si += 4, di += 4) {
+          const cov = d[si] / v;                     // grey ink on black: red channel IS level*a
+          sd[di] = sd[di + 1] = sd[di + 2] = v;
+          sd[di + 3] = cov >= 1 ? 255 : (cov * 255 + 0.5) | 0;
+        }
+      }
+    }
   }
-  const hasTrail = pts.length > 0;
-  bMinX -= Rc; bMinY -= Rc; bMaxX += Rc; bMaxY += Rc;   // expand box by radius
+  // The sheet was painted on the visible canvas; wipe it before handing the
+  // canvas back, so a slow first frame can never show the raw atlas.
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
+  ctx.font = savedFont;
+  actx.putImageData(sheet, 0, 0);
+  atlasCell = cell;
+}
 
-  for (let y = 0; y < gridRows; y++) {
-    for (let x = 0; x < gridCols; x++) {
-      const c = grid[y * gridCols + x];
-      if (c.a === 0) continue;               // skip transparent background
+// --bg was read with getComputedStyle inside draw(), i.e. a forced style
+// resolution on the document element 60 times a second. It never changes.
+let bgColor = '#09090a';
+function readBg() {
+  const v = (getComputedStyle(document.documentElement).getPropertyValue('--bg') || '').trim();
+  if (v) bgColor = v;
+}
+
+/* ---------------------------------------------------------------------------
+   WHAT ACTUALLY COSTS A FRAME, measured on this canvas (13,019 ink cells):
+
+       one fillText per cell        9.7 ms      <- what this used to do
+       one atlas blit per cell      6.4 ms      <- the atlas alone
+       one blit of a whole layer    0.0 ms
+
+   Per-call overhead is the whole story — there is no amount of arithmetic
+   tuning that matters (the JavaScript in the loop measures 0.3 ms). The only
+   real lever is issuing fewer draw calls. And on Windows every one of those
+   numbers is several times larger, which is exactly why a machine that renders
+   the hero fine on macOS spends most of a frame on it there.
+
+   So the still portrait is rendered into an offscreen layer and the visible
+   canvas is composited from it:
+
+     base layer   every cell, greyscale, shimmer + flicker. Refreshed on its
+                  own stride so it never eats more than BASE_BUDGET_MS of a
+                  frame — on a fast machine that is every frame, unchanged.
+     each frame   blit the base (one call, free) and repaint ONLY the cells
+                  under the cursor trail, which is the part that has to track
+                  the pointer at full frame rate.
+
+   The reveal therefore runs at the display's rate no matter how slow the full
+   pass is. Before, a slow machine dropped the ENTIRE portrait to a stride, so
+   the reveal trail lagged the cursor in visible steps — the "animation quality
+   is worse on Windows" everyone could see but nobody could point at.
+
+   The collapse is the exception: it moves every cell at once, so there is
+   nothing static to cache and it takes the full path (which gets progressively
+   cheaper as cells dissolve out of it).
+   --------------------------------------------------------------------------- */
+
+// Live frame state, shared with paintCells() instead of threaded through a
+// dozen arguments — this is a hot loop and it is called three different ways.
+let _pts = [], _hasTrail = false, _Rc = 0, _Rc2 = 0;
+let _bMinX = 0, _bMinY = 0, _bMaxX = 0, _bMaxY = 0;
+let _scaleX = 1, _C = 0, _orbX = 0, _orbY = 0;
+
+let baseCv = null, bctx = null, baseTime = -1, baseW = 0, baseH = 0;
+let baseCost = 0, baseFrame = 0;
+// Tuned so a Mac (which measures ~9.5ms for a full base repaint) stays at
+// stride 1 — i.e. byte-for-byte the shimmer and flicker rate it has today.
+const BASE_BUDGET_MS = 12;     // ms a full base repaint may cost before it starts striding
+
+function ensureBase() {
+  if (baseCv && baseW === canvas.width && baseH === canvas.height) return;
+  baseCv = baseCv || document.createElement('canvas');
+  baseCv.width = baseW = canvas.width;
+  baseCv.height = baseH = canvas.height;
+  bctx = baseCv.getContext('2d');
+  bctx.textBaseline = 'top';
+  bctx.font = ctx.font;
+  baseTime = -1;               // stale: the layer was just resized to blank
+}
+
+/* Paint the cell range [x0..x1] x [y0..y1] into `g`.
+   reveal  honour the cursor trail (colour + displacement + scramble)
+   flicker allow the sparse random glyph swaps. Off for the cursor overlay,
+           where a cell that flickered here but not in the cached base
+           underneath would show as a doubled glyph. */
+function paintCells(g, time, x0, y0, x1, y1, reveal, flicker) {
+  const A = CONFIG.anim, rev = CONFIG.reveal;
+  const rampN = CONFIG.ramp.length;
+  const pts = _pts, hasTrail = reveal && _hasTrail, Rc = _Rc, Rc2 = _Rc2;
+  const C = _C;
+  let curAlpha = 1;
+
+  for (let y = y0; y <= y1; y++) {
+    const rowOff = y * gridCols;
+    for (let x = x0; x <= x1; x++) {
+      const c = grid[rowOff + x];
+      if (!c || c.a === 0) continue;         // skip transparent background
       let dx = x * cell, dy = y * cell;
       const cx = dx + cell / 2, cy = dy + cell / 2;
 
       // Strongest influence from the trail (comet tail: newest = brightest).
       let influence = 0;
-      if (hasTrail && cx >= bMinX && cx <= bMaxX && cy >= bMinY && cy <= bMaxY) {
+      if (hasTrail && cx >= _bMinX && cx <= _bMaxX && cy >= _bMinY && cy <= _bMaxY) {
         for (let i = 0; i < pts.length; i += 3) {
           const ddx = cx - pts[i], ddy = cy - pts[i + 1];
           const d2 = ddx * ddx + ddy * ddy;
@@ -1099,24 +1256,32 @@ function draw(time) {
         }
       }
 
-      let ch = c.ch;
+      // A background cell maps to the blank end of the ramp, so outside the
+      // reveal it paints nothing at all — the draw call was pure cost. The
+      // avatar sits on black, so this skips 42% of the grid, with identical
+      // output. Only the reveal can turn a blank cell into ink (it scrambles
+      // characters in), which is why influence is tested first.
+      if (influence === 0 && c.ch === ' ') continue;
+
+      let ch = c.ch, ci = c.ci, lv = 0, colored = false;
       if (influence > 0) {
+        colored = true;
         const ease = influence * influence;  // 1 at core -> 0 at edge
         const gr = 0.299 * c.r + 0.587 * c.g + 0.114 * c.b;
         const rr = Math.round(gr + (c.r - gr) * ease);
         const gg = Math.round(gr + (c.g - gr) * ease);
         const bb = Math.round(gr + (c.b - gr) * ease);
-        ctx.fillStyle = `rgb(${rr},${gg},${bb})`;
+        g.fillStyle = `rgb(${rr},${gg},${bb})`;
 
         // distortion: scatter each glyph in its OWN stable random direction
         // (not radially outward) so the displacement never forms a round bubble
         const h = (x * 73856093) ^ (y * 19349663);
         const ang = ((h >>> 0) % 6283) / 1000;   // stable per-cell angle 0..2π
-        const push = rev.distort * ease * scaleX;
+        const push = rev.distort * ease * _scaleX;
         dx += Math.cos(ang) * push;
         dy += Math.sin(ang) * push;
         if (Math.random() < rev.scramble * ease) {
-          ch = CONFIG.ramp[(Math.random() * (CONFIG.ramp.length - 1)) | 0];
+          ch = CONFIG.ramp[(Math.random() * (rampN - 1)) | 0];
         }
       } else {
         // grayscale base — tie ink brightness to the pixel's luminance
@@ -1125,21 +1290,21 @@ function draw(time) {
         if (A.enabled) {
           // slow breathing shimmer travelling across the grid
           v += Math.sin(time * A.shimmerSpeed + x * 0.25 + y * 0.18) * A.shimmer;
-          // sparse random flicker: brief bright glyph swaps (ink cells only,
-          // so the black background around the portrait stays clean)
-          if (ch !== ' ' && Math.random() < A.flicker) {
+          // sparse random flicker: brief bright glyph swaps. Blank cells were
+          // already skipped above, so the black around the portrait stays clean.
+          if (flicker && Math.random() < A.flicker) {
             v += 60;
-            ch = CONFIG.ramp[(Math.random() * (CONFIG.ramp.length - 1)) | 0];
+            ci = (Math.random() * (rampN - 1)) | 0;
           }
         }
-        v = Math.max(0, Math.min(255, Math.round(v)));
-        ctx.fillStyle = `rgb(${v},${v},${v})`;
+        lv = v <= 0 ? 0 : v >= 255 ? ATLAS_LEVELS - 1 : (v >> 3);
       }
 
       // ---- scroll-collapse: each glyph disintegrates on its OWN staggered
       // timeline, accelerating toward the orb with a little scatter, and fading
       // out before it fully arrives — so the portrait is absorbed grain by grain
       // instead of shrinking away as one block. ----
+      let alpha = 1;
       if (C > 0) {
         const hh = ((x * 92837111) ^ (y * 689287499)) >>> 0;
         const ord = (hh % 1000) / 1000;                    // stable per-cell order
@@ -1147,31 +1312,129 @@ function draw(time) {
         const e = raw <= 0 ? 0 : raw >= 1 ? 1 : raw * raw * (3 - 2 * raw);
         if (e > 0) {
           const acc = Math.pow(e, 1.7);                    // suction: accelerate inward
-          dx += (orbX - (dx + cell / 2)) * acc;
-          dy += (orbY - (dy + cell / 2)) * acc;
+          dx += (_orbX - (dx + cell / 2)) * acc;
+          dy += (_orbY - (dy + cell / 2)) * acc;
           const ang = ord * 6.2832;                        // stable scatter direction
-          const sw = 26 * scaleX * Math.sin(e * Math.PI) * (1 - e);
+          const sw = 26 * _scaleX * Math.sin(e * Math.PI) * (1 - e);
           dx += Math.cos(ang) * sw;
           dy += Math.sin(ang) * sw;
           let a = 1 - (e - 0.5) / 0.4;                     // dissolve over the flight
-          if (a < 0) a = 0; else if (a > 1) a = 1;
+          if (a > 1) a = 1;
           // Fully dissolved: skip it. It was still being drawn at globalAlpha 0,
           // paying a full draw call to paint nothing. Since more cells finish
           // their flight as the collapse proceeds, the frame gets progressively
           // cheaper exactly while the animation is on screen — which is where a
           // slow machine needs the headroom most.
           if (a <= 0) continue;
-          if (a < 1) {
-            ctx.globalAlpha = a;
-            ctx.fillText(ch, dx, dy);
-            ctx.globalAlpha = 1;
-            continue;
-          }
+          // Quantised so a whole flight of glyphs at a similar stage of
+          // dissolving shares one globalAlpha write instead of one each.
+          alpha = a >= 1 ? 1 : Math.round(a * 32) / 32;
+          if (alpha <= 0) continue;
         }
       }
-      ctx.fillText(ch, dx, dy);
+
+      if (alpha !== curAlpha) { g.globalAlpha = alpha; curAlpha = alpha; }
+      if (colored) g.fillText(ch, dx, dy);
+      else g.drawImage(atlas, ci * TS, lv * TS, TS, TS, dx - PAD, dy - PAD, TS, TS);
     }
   }
+  if (curAlpha !== 1) g.globalAlpha = 1;
+}
+
+function draw(time) {
+  const rev = CONFIG.reveal;
+  const rect = canvas.getBoundingClientRect();
+  _scaleX = rect.width ? canvas.width / rect.width : 1;
+  _Rc = rev.radius * _scaleX;                // reveal radius in canvas px
+  _Rc2 = _Rc * _Rc;
+  const persistMs = rev.trailPersist * 1000;
+  const nowMs = performance.now();
+
+  // scroll-collapse progress (0..1) + the orb's position in canvas pixels, so
+  // each glyph can be drawn flying toward the beeping orb individually.
+  _C = window.__collapse || 0;
+  _orbX = (0.46 * window.innerWidth  - rect.left) * _scaleX;
+  _orbY = (0.50 * window.innerHeight - rect.top ) * _scaleX;
+
+  // Prune expired trail points, then build the active set in canvas px.
+  while (trail.length && nowMs - trail[0].born > persistMs) trail.shift();
+  const pts = [];
+  let bMinX = Infinity, bMinY = Infinity, bMaxX = -Infinity, bMaxY = -Infinity;
+  for (let i = 0; i < trail.length; i++) {
+    const age = nowMs - trail[i].born;
+    const s = 1 - age / persistMs;           // 1 fresh -> 0 old (fading tail)
+    const tx = (trail[i].x - rect.left) * _scaleX;
+    const ty = (trail[i].y - rect.top) * _scaleX;
+    pts.push(tx, ty, s);                      // flat array: [x, y, strength, ...]
+    if (tx < bMinX) bMinX = tx; if (tx > bMaxX) bMaxX = tx;
+    if (ty < bMinY) bMinY = ty; if (ty > bMaxY) bMaxY = ty;
+  }
+  _pts = pts;
+  _hasTrail = pts.length > 0;
+  _bMinX = bMinX - _Rc; _bMinY = bMinY - _Rc;   // expand box by radius
+  _bMaxX = bMaxX + _Rc; _bMaxY = bMaxY + _Rc;
+
+  const lastCol = gridCols - 1, lastRow = gridRows - 1;
+
+  // ---- collapse: everything moves, nothing can be cached ----
+  if (_C > 0) {
+    baseTime = -1;
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    paintCells(ctx, time, 0, 0, lastCol, lastRow, true, true);
+    return;
+  }
+
+  // ---- refresh the cached still portrait on its own stride ----
+  ensureBase();
+  const baseStride = baseCost > BASE_BUDGET_MS ? Math.ceil(baseCost / BASE_BUDGET_MS) : 1;
+  if (baseTime < 0 || baseFrame++ % baseStride === 0) {
+    const t = performance.now();
+    bctx.fillStyle = bgColor;
+    bctx.fillRect(0, 0, baseW, baseH);
+    paintCells(bctx, time, 0, 0, lastCol, lastRow, false, true);
+    baseTime = time;
+    const cost = performance.now() - t;
+    baseCost = baseCost ? baseCost * 0.85 + cost * 0.15 : cost;
+  }
+  ctx.drawImage(baseCv, 0, 0);
+
+  // ---- repaint just the cells under the cursor trail ----
+  if (!_hasTrail) return;
+  // Margin: a revealed glyph is displaced by up to `distort` px away from its
+  // own cell, so the repaint has to reach that far past the trail's radius.
+  const m = rev.distort * _scaleX + cell;
+  const cx0 = Math.max(0, Math.floor((_bMinX - m) / cell));
+  const cy0 = Math.max(0, Math.floor((_bMinY - m) / cell));
+  const cx1 = Math.min(lastCol, Math.ceil((_bMaxX + m) / cell));
+  const cy1 = Math.min(lastRow, Math.ceil((_bMaxY + m) / cell));
+  if (cx1 < cx0 || cy1 < cy0) return;
+  const bx = cx0 * cell, by = cy0 * cell;
+  const bw = (cx1 - cx0 + 1) * cell, bh = (cy1 - cy0 + 1) * cell;
+
+  /* Clear the box and repaint it — plus one cell PAST it on every side, because
+     a glyph is drawn from the top-left of its cell and its ink overhangs a
+     pixel or two into the neighbouring one; without that ring the box edge
+     slices those overhangs off.
+
+     The repaint is CLIPPED to the box, which is the part that has to be exact.
+     Painting the ring cells unclipped would draw them a second time on top of
+     the base layer that already contains them, and alpha compositing is not
+     idempotent: every antialiased glyph edge in that ring comes out up to half
+     again as bright, which reads as a faint rectangle tracking the cursor.
+     Measured before clipping: ~1,400 pixels off by as much as 43/255. After:
+     zero. */
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(bx, by, bw, bh);
+  ctx.clip();
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(bx, by, bw, bh);
+  paintCells(ctx, time,
+             Math.max(0, cx0 - 1), Math.max(0, cy0 - 1),
+             Math.min(lastCol, cx1 + 1), Math.min(lastRow, cy1 + 1),
+             true, false);
+  ctx.restore();
 }
 
 let t0 = performance.now();
@@ -1203,20 +1466,66 @@ const BUDGET_MS = 22;     // ms of one frame the portrait may spend before we sk
 let drawCost = 0;         // rolling estimate of a single draw(), ms
 let frameNo = 0;
 window.__portraitStats = () => ({ drawCost: +drawCost.toFixed(1),
-                                  stride: drawCost > BUDGET_MS ? Math.ceil(drawCost / BUDGET_MS) : 1 });
+                                  stride: drawCost > BUDGET_MS ? Math.ceil(drawCost / BUDGET_MS) : 1,
+                                  baseCost: +baseCost.toFixed(1),
+                                  baseStride: baseCost > BASE_BUDGET_MS ? Math.ceil(baseCost / BASE_BUDGET_MS) : 1,
+                                  inZone: inHeroZone });
 
+/* ---------------------------------------------------------------------------
+   LEAVING THE HERO: WIPE, don't just stop.
+
+   .portrait-stage is position:fixed at z-index 1, so it stays layered over
+   every section for the whole page. Stopping the render loop therefore does
+   not remove the portrait — it FREEZES whatever draw() painted last and leaves
+   it hanging over the About / What I Do / Contact sections.
+
+   Two ordinary things leave a half-drawn portrait behind:
+
+     refresh partway down   the browser restores the scroll position, but the
+                            avatar can finish loading BEFORE it does. Those few
+                            frames paint the full, uncollapsed hero, and then
+                            the restore lands and the loop stops — with the
+                            entire portrait still on the canvas. This is the
+                            "refresh from a section and the figure is broken"
+                            report, and it is a race, which is why it depends
+                            on the machine.
+     one hard wheel flick   the collapse is deliberately rate-limited (see
+                            MAX_RATE), so a flick crosses the whole hero long
+                            before the absorb has finished. The loop stops at,
+                            say, 30% collapsed and that ghost stays. Mac
+                            trackpad scrolling is gradual enough to normally
+                            finish the absorb first, which is why this looked
+                            like a Windows-only bug.
+
+   Clearing once on the way out costs nothing and makes both impossible.
+   visibility:hidden on top of it takes the layer out of compositing entirely
+   while it has nothing to show.
+
+   The 1.4 / 1.25 band is hysteresis: a wheel notch landing on a single
+   threshold used to flip the renderer on and off on alternating frames.
+   --------------------------------------------------------------------------- */
+let inHeroZone = true;
 function loopBody() {
   const time = (performance.now() - t0) / 1000;
-  // only pay for the (expensive) portrait render while the hero is on screen
-  if (window.scrollY < window.innerHeight * 1.4 &&
-      !document.body.classList.contains('m-past')) {
-    const stride = drawCost > BUDGET_MS ? Math.ceil(drawCost / BUDGET_MS) : 1;
-    if (frameNo++ % stride === 0) {
-      const tDraw = performance.now();
-      draw(time);
-      const cost = performance.now() - tDraw;
-      drawCost = drawCost ? drawCost * 0.85 + cost * 0.15 : cost;
+  const vh = window.innerHeight || 1;
+  const past = document.body.classList.contains('m-past') ||
+               window.scrollY > vh * (inHeroZone ? 1.4 : 1.25);
+  if (past) {
+    if (inHeroZone) {
+      inHeroZone = false;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      canvas.style.visibility = 'hidden';
     }
+    return;
+  }
+  if (!inHeroZone) { inHeroZone = true; canvas.style.visibility = ''; }
+  // only pay for the (expensive) portrait render while the hero is on screen
+  const stride = drawCost > BUDGET_MS ? Math.ceil(drawCost / BUDGET_MS) : 1;
+  if (frameNo++ % stride === 0) {
+    const tDraw = performance.now();
+    draw(time);
+    const cost = performance.now() - tDraw;
+    drawCost = drawCost ? drawCost * 0.85 + cost * 0.15 : cost;
   }
 }
 let loopStarted = false;
@@ -1382,6 +1691,9 @@ img.src = CONFIG.src;
   }
 
   function size() {
+    // a build swap clears flow's inline styles (visibility included), so the
+    // flag has to be re-armed or the layer would stay logically "hidden"
+    flowVisible = true; fcanvas.style.visibility = '';
     phone = !!(window.__isPhone && window.__isPhone());
     dpr = Math.min(2, window.devicePixelRatio || 1);
     W = window.innerWidth; H = window.innerHeight;
@@ -1543,11 +1855,26 @@ img.src = CONFIG.src;
   }
 
   let tPrev = performance.now(), accIn = 0, accOut = 0;
+  // Same freeze as the portrait canvas, and worse to look at: this layer is a
+  // full-viewport fixed canvas, so its last frame — the orb plus the vertical
+  // divider line — hangs over every section below. The early return used to
+  // happen BEFORE the clearRect, so whatever was on screen when the hero left
+  // stayed there. Clear once on the way out instead.
+  let flowVisible = true;
   function frame(now) {
     const dt = Math.min(0.05, (now - tPrev) / 1000); tPrev = now;
     // pause the flow render once the hero has scrolled away (it's invisible anyway)
-    if (window.scrollY > window.innerHeight * 1.4 ||
-        document.body.classList.contains('m-past')) return;   // __rafLoop schedules the next frame
+    const past = document.body.classList.contains('m-past') ||
+                 window.scrollY > window.innerHeight * (flowVisible ? 1.4 : 1.25);
+    if (past) {
+      if (flowVisible) {
+        flowVisible = false;
+        fctx.clearRect(0, 0, W, H);
+        fcanvas.style.visibility = 'hidden';
+      }
+      return;                                                 // __rafLoop schedules the next frame
+    }
+    if (!flowVisible) { flowVisible = true; fcanvas.style.visibility = ''; }
     fctx.clearRect(0, 0, W, H);
     aRect = asciiEl ? asciiEl.getBoundingClientRect() : null;
 
@@ -1593,6 +1920,9 @@ img.src = CONFIG.src;
 
   window.addEventListener('resize', size);
   size();
+  // Exposed for the same reason __collapseFrame is: the enter/leave behaviour
+  // has to be checkable without a real scroll driving a real rAF loop.
+  window.__flowFrame = frame;
   window.__rafLoop('flow', frame);
 })();
 </script>
@@ -1695,7 +2025,11 @@ img.src = CONFIG.src;
       const wantsToMove = Math.abs(lenis.targetScroll - y) > 4;
       if (!wantsToMove || y !== lastY) { stuckSince = 0; lastY = y; return; }
       if (!stuckSince) { stuckSince = performance.now(); return; }
-      if (performance.now() - stuckSince > 400) {
+      // 1200ms, not 400: on a machine slow enough to spend 100ms in a frame,
+      // four janky frames in a row are normal and used to trip this — dropping
+      // smooth scrolling mid-session for no reason. A Lenis that genuinely
+      // cannot move the page does not recover in a second and a bit.
+      if (performance.now() - stuckSince > 1200) {
         try { lenis.destroy(); } catch (err) { noteError('lenis.destroy', err); }
         window.__lenis = null;
         document.documentElement.classList.remove('lenis', 'lenis-smooth', 'lenis-scrolling');
@@ -1934,6 +2268,25 @@ img.src = CONFIG.src;
        how far the absorb can jump in one frame. */
     const MAX_RATE = 0.9;                  // p units per second
 
+    /* ...WHICH MUST NOT APPLY TO A SCROLL THE READER DID NOT MAKE.
+
+       Refresh halfway down the page and the browser restores the scroll
+       position for you. The collapse then starts from p=0 — because that is
+       where the page was when this script ran — and eases toward p=1 at the
+       rate above. So for the first second after a mid-page refresh the hero
+       headline is drawn over whatever section you actually reloaded on, and
+       then flies off into the orb. Same for landing on a #contact link.
+
+       Neither is a scroll gesture, and neither should be animated: the
+       animation exists to be watched while you scroll, and there is nobody
+       scrolling. So until the reader's first real input the collapse SNAPS to
+       wherever the page is, and only then starts easing. pointerdown is in the
+       list so that clicking a nav link — which is a gesture — still animates. */
+    let armed = false;
+    const arm = () => { armed = true; };
+    const ARM_EVENTS = ['wheel', 'pointerdown', 'keydown', 'touchstart'];
+    ARM_EVENTS.forEach((t) => addEventListener(t, arm, { once: true, passive: true, capture: true }));
+
     function readTarget() {
       pTarget = clamp(scrollY / (innerHeight * 0.9), 0, 1);
     }
@@ -1946,6 +2299,11 @@ img.src = CONFIG.src;
       // while the page is somewhere else. That is exactly the failure mode
       // that made Lenis bounce. One property read a frame removes it.
       readTarget();
+      if (!armed) {                        // scroll restoration / hash jump: no easing
+        if (pNow !== pTarget) { pNow = pTarget; applyAt(pNow); }
+        lastFrameT = 0;
+        return;
+      }
       // Clamp BOTH ends. The upper bound stops a long stall from jumping the
       // easing; the lower bound is the important one — a zero or negative dt
       // (a repeated timestamp, a clock that steps backwards, the first frame
@@ -2025,6 +2383,7 @@ img.src = CONFIG.src;
 
     return function teardownDesktop() {
       stopCollapse();
+      ARM_EVENTS.forEach((t) => removeEventListener(t, arm, { capture: true }));
       removeEventListener('resize', measure);
       removeEventListener('load', measure);
       clearTimeout(settle);
@@ -2354,6 +2713,7 @@ img.src = CONFIG.src;
   let W = 0, H = 0;
   const trail = [];
   let lastX = -1, lastY = -1;
+  let lastProbe = 0;
   let darkDots = false;               // true while the cursor is over a .light-zone
 
   function size() {
@@ -2372,9 +2732,16 @@ img.src = CONFIG.src;
       lastX = x; lastY = y;
       if (trail.length > 26) trail.shift();
       // #cursor is pointer-events:none, so elementFromPoint returns the content
-      // beneath it — flip to dark dots whenever that content is in a light zone
-      const under = document.elementFromPoint(x, y);
-      darkDots = !!(under && under.closest('.light-zone'));
+      // beneath it — flip to dark dots whenever that content is in a light zone.
+      // Throttled: elementFromPoint forces a style+layout flush, and this ran on
+      // every 6px of pointer travel — i.e. constantly, in the middle of a scroll.
+      // Which zone the cursor is over cannot change faster than the page scrolls.
+      const tNow = performance.now();
+      if (tNow - lastProbe > 120) {
+        lastProbe = tNow;
+        const under = document.elementFromPoint(x, y);
+        darkDots = !!(under && under.closest('.light-zone'));
+      }
     }
   });
 
